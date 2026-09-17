@@ -30,6 +30,51 @@ FASTAPI_OBSERVATIONS = {
     "path-operation": _request("get", "/items/42"),
     "automatic-docs-openapi": _request("get", "/items/7"),
     "fastapi-cli": _request("get", "/health"),
+    "path-enum-values": _request("get", "/models/resnet"),
+    "query-parameters": _request("get", "/items?skip=1&limit=2"),
+    "request-body": _request("post", "/items", 'json={"name": "Pen", "price": 1.5}'),
+    "body-multiple-params": _request("put", "/items/7", 'json={"item": {"name": "Pen"}, "user": {"username": "ada"}, "importance": 2}'),
+    "query-string-validation": _request("get", "/search?q=fastapi"),
+    "path-numeric-validation": _request("get", "/items/100"),
+    "query-param-models": _request("get", "/items?limit=2&order_by=updated_at"),
+    "body-fields": _request("post", "/items", 'json={"name": "Pen", "price": 2}'),
+    "nested-models": _request("post", "/items", 'json={"name": "Pen", "tags": ["blue"], "image": {"url": "https://example.com/pen.png", "name": "pen"}}'),
+    "request-examples": _request("post", "/items", 'json={"name": "Book", "price": 3}'),
+    "extra-data-types": _request("post", "/events", 'json={"id": "12345678-1234-5678-1234-567812345678", "starts_at": "2026-01-02T03:04:05Z"}'),
+    "dataclass-models": '''from fastapi.testclient import TestClient
+
+client = TestClient(app)
+response = client.post(
+    "/catalogs",
+    json={"owner": "Leo", "items": [{"name": "Pen", "price": 1.5, "tags": ["blue"]}]},
+)
+print(response.status_code)
+print(response.json())
+print(app.openapi()["components"]["schemas"])''',
+    "pydantic-v2-migration": '''from fastapi.testclient import TestClient
+
+item = Item.model_validate({"name": "  Pen  ", "price": 2})
+print(item.model_dump())
+
+client = TestClient(app)
+response = client.post("/items", json={"name": "  Pen  ", "price": 2})
+print(response.status_code)
+print(response.json())''',
+    "cookie-parameters": _request("get", "/session", 'cookies={"session_id": "abc"}'),
+    "header-parameters": _request("get", "/agent", 'headers={"user-agent": "lab-browser"}'),
+    "cookie-param-models": _request("get", "/cookies", 'cookies={"session_id": "abc", "fatebook_tracker": "t1"}'),
+    "header-param-models": _request("get", "/headers", 'headers={"host": "api.example", "save-data": "true"}'),
+    "form-data": _request("post", "/login", 'data={"username": "ada", "password": "abcd"}'),
+    "form-models": _request("post", "/login", 'data={"username": "ada", "password": "abcd"}'),
+    "request-files": _request("post", "/files", 'files={"file": ("hello.txt", b"hello", "text/plain")}'),
+    "forms-and-files": _request("post", "/assets", 'data={"description": "notes"}, files={"file": ("note.txt", b"abc", "text/plain")}'),
+    "response-model": _request("get", "/users/me"),
+    "extra-models": _request("post", "/users", 'json={"username": "ada", "password": "secret"}'),
+    "response-status-code": _request("post", "/items"),
+    "handling-errors": _request("get", "/items/1"),
+    "path-operation-configuration": _request("get", "/legacy"),
+    "json-compatible-encoder": _request("get", "/payload"),
+    "body-updates": _request("patch", "/items/1", 'json={"price": 5}'),
 }
 
 
