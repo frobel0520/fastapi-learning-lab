@@ -1,3 +1,4 @@
+import ast
 import asyncio
 import dataclasses
 import inspect
@@ -208,6 +209,55 @@ HTTP_CASES: dict[str, list[dict[str, object]]] = {
         {"name": "刪除 row", "method": "DELETE", "path": "/heroes/1", "status": 200, "json": {"ok": True}},
         {"name": "刪除後為 404", "path": "/heroes/1", "status": 404, "json": {"detail": "Hero not found"}},
     ],
+    "middleware-process-time": [
+        {"name": "Middleware 保留 response", "path": "/ping", "status": 200, "json": {"ok": True}},
+    ],
+    "bigger-applications": [
+        {"name": "Router prefix 組合", "path": "/api/items/", "status": 200, "json": [{"id": 1, "name": "Keyboard"}]},
+    ],
+    "static-files": [
+        {"name": "Static file", "path": "/static/hello.txt", "status": 200, "text": "Hello Static"},
+    ],
+    "frontend-spa": [
+        {"name": "API route 優先", "path": "/api/ping", "status": 200, "json": {"api": True}},
+        {"name": "SPA navigation fallback", "path": "/dashboard", "headers": {"accept": "text/html"}, "status": 200, "text_contains": "Learning SPA"},
+        {"name": "Missing asset stays 404", "path": "/assets/missing.js", "status": 404},
+    ],
+    "sub-applications": [
+        {"name": "Main application", "path": "/app", "status": 200, "json": {"app": "main"}},
+        {"name": "Mounted sub-application", "path": "/subapi/reports", "status": 200, "json": {"app": "reports"}},
+    ],
+    "jinja-templates": [
+        {"name": "Jinja template", "path": "/hello/Leo", "status": 200, "text_contains": "Hello Leo"},
+    ],
+    "settings-environment": [
+        {"name": "Typed settings", "path": "/info", "status": 200, "json": {"app_name": "Learning API", "debug": False}},
+    ],
+    "wsgi-mount": [
+        {"name": "FastAPI v2", "path": "/v2", "status": 200, "json": {"api": "fastapi"}},
+        {"name": "Mounted WSGI", "path": "/legacy/?name=Leo", "status": 200, "text_contains": "Hello Leo from WSGI"},
+    ],
+    "background-tasks": [
+        {"name": "202 Accepted", "method": "POST", "path": "/notifications/leo@example.com", "status": 202, "json": {"accepted": True}},
+    ],
+    "stream-json-lines": [
+        {"name": "JSON Lines body", "path": "/items/stream", "status": 200, "text_contains": "\n"},
+    ],
+    "server-sent-events": [
+        {"name": "SSE event body", "path": "/progress", "status": 200, "text_contains": "event: progress"},
+    ],
+    "streaming-response": [
+        {"name": "Raw stream body", "path": "/logs/stream", "status": 200, "text": "alpha\nbeta\n"},
+    ],
+    "testclient-basics": [
+        {"name": "GET item contract", "path": "/items/7", "status": 200, "json": {"item_id": 7}},
+    ],
+    "async-http-tests": [
+        {"name": "Async target endpoint", "path": "/ping", "status": 200, "json": {"ok": True}},
+    ],
+    "debugging-entrypoint": [
+        {"name": "Debug endpoint", "path": "/debug-info", "status": 200, "json": {"mode": "debug"}},
+    ],
 }
 
 
@@ -268,7 +318,164 @@ def evaluate_http_cases(lesson_id: str, app: FastAPI) -> list[dict[str, object]]
     if lesson_id == "data-model-separation":
         response_schema = schema["paths"]["/heroes"]["post"]["responses"]["201"]["content"]["application/json"]["schema"]
         results.append(check("OpenAPI public model", lambda: response_schema.get("$ref", "").endswith("/HeroPublic"), "Response schema 必須使用 HeroPublic"))
+    if lesson_id == "middleware-process-time":
+        response = client.get("/ping")
+        results.append(check("Process time header", lambda: float(response.headers["x-process-time"]) >= 0, "X-Process-Time 必須是非負浮點數"))
+    if lesson_id == "bigger-applications":
+        operation = schema["paths"]["/api/items/"]["get"]
+        results.append(check("Router OpenAPI tag", lambda: "items" in operation.get("tags", []), "operation 必須具有 items tag"))
+    if lesson_id == "sub-applications":
+        sub_schema = client.get("/subapi/openapi.json")
+        results.append(check("Independent OpenAPI", lambda: sub_schema.status_code == 200 and sub_schema.json()["info"]["title"] == "Reports API" and "/reports" not in schema.get("paths", {}), "sub-app 必須保有獨立 OpenAPI"))
+    if lesson_id == "jinja-templates":
+        response = client.get("/hello/Leo")
+        results.append(check("HTML content type", lambda: response.headers.get("content-type", "").startswith("text/html"), "TemplateResponse 必須回傳 text/html"))
+    if lesson_id == "wsgi-mount":
+        results.append(check("WSGI excluded from OpenAPI", lambda: "/legacy/" not in schema.get("paths", {}), "WSGI routes 不應加入主 OpenAPI"))
+    if lesson_id == "stream-json-lines":
+        response = client.get("/items/stream")
+        try:
+            records = [json.loads(line) for line in response.text.splitlines() if line]
+        except json.JSONDecodeError:
+            records = []
+        results.append(check("JSONL media type", lambda: response.headers.get("content-type", "").startswith("application/jsonl"), "必須回傳 application/jsonl"))
+        results.append(check("JSONL records", lambda: records == [{"name": "Pen", "price": 1.5}, {"name": "Book", "price": 3.0}], "每行必須是獨立 JSON Item"))
+    if lesson_id == "server-sent-events":
+        response = client.get("/progress")
+        body = response.text.replace("\r\n", "\n")
+        results.append(check("SSE media type", lambda: response.headers.get("content-type", "").startswith("text/event-stream"), "必須回傳 text/event-stream"))
+        results.append(check("SSE fields", lambda: all(value in body for value in ('event: progress', 'id: 1', 'event: done', 'id: 2', 'data: [DONE]')) and ('data: {"step":1}' in body or 'data: {"step": 1}' in body), "SSE event、id 或 data framing 不完整"))
+        results.append(check("SSE cache policy", lambda: response.headers.get("cache-control") == "no-cache", "SSE 必須停用 cache"))
+    if lesson_id == "streaming-response":
+        response = client.get("/logs/stream")
+        results.append(check("Raw stream media type", lambda: response.headers.get("content-type", "").startswith("text/plain"), "必須宣告 text/plain media type"))
     return results
+
+
+def evaluate_websocket(app: FastAPI) -> list[dict[str, object]]:
+    client = TestClient(app)
+    try:
+        with client.websocket_connect("/ws") as websocket:
+            websocket.send_text("hello")
+            message = websocket.receive_json()
+        connected = True
+    except Exception:
+        connected = False
+        message = None
+    return [
+        check("WebSocket handshake", lambda: connected, "WebSocket 必須 accept 連線"),
+        check("Echo JSON frame", lambda: message == {"echo": "hello"}, "收到 hello 後必須回傳 echo JSON"),
+    ]
+
+
+def evaluate_cors(app: FastAPI) -> list[dict[str, object]]:
+    client = TestClient(app)
+    allowed = client.options("/profile", headers={
+        "origin": "https://learn.example.com",
+        "access-control-request-method": "GET",
+        "access-control-request-headers": "Authorization",
+    })
+    denied = client.get("/profile", headers={"origin": "https://unknown.example.com"})
+    return [
+        check("CORS preflight", lambda: allowed.status_code == 200, "合法 preflight 必須回傳 200"),
+        check("Allowed origin", lambda: allowed.headers.get("access-control-allow-origin") == "https://learn.example.com", "必須明確允許指定 origin"),
+        check("Unknown origin", lambda: "access-control-allow-origin" not in denied.headers, "未知 origin 不得取得 allow-origin header"),
+    ]
+
+
+def evaluate_lifespan(namespace: dict[str, object], app: FastAPI) -> list[dict[str, object]]:
+    resources = namespace.get("resources")
+    events = namespace.get("events")
+    with TestClient(app) as client:
+        response = client.get("/ready")
+        during = dict(resources) if isinstance(resources, dict) else None
+    return [
+        check("Lifespan startup", lambda: events == ["startup", "shutdown"], "startup 與 shutdown 必須各執行一次"),
+        check("Resource available", lambda: response.status_code == 200 and response.json() == {"model": "ready"} and during == {"model": "ready"}, "request 期間資源必須可用"),
+        check("Lifespan cleanup", lambda: resources == {}, "shutdown 後必須清空資源"),
+    ]
+
+
+def execute_test_function(namespace: dict[str, object], name: str, *, asynchronous: bool = False) -> dict[str, object]:
+    function = namespace.get(name)
+    if not callable(function):
+        return {"name": name, "passed": False, "message": f"找不到可呼叫的 {name}"}
+    try:
+        if asynchronous:
+            if not inspect.iscoroutinefunction(function):
+                return {"name": name, "passed": False, "message": f"{name} 必須使用 async def"}
+            asyncio.run(function())
+        else:
+            function()
+        return {"name": name, "passed": True, "message": "測試函式 assertions 通過"}
+    except Exception as error:
+        return {"name": name, "passed": False, "message": f"測試函式失敗：{type(error).__name__}: {error}"}
+
+
+def has_main_guard() -> bool:
+    tree = ast.parse(Path("/tmp/main.py").read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.If) or not isinstance(node.test, ast.Compare):
+            continue
+        test = node.test
+        if (
+            isinstance(test.left, ast.Name)
+            and test.left.id == "__name__"
+            and len(test.ops) == 1
+            and isinstance(test.ops[0], ast.Eq)
+            and len(test.comparators) == 1
+            and isinstance(test.comparators[0], ast.Constant)
+            and test.comparators[0].value == "__main__"
+        ):
+            return True
+    return False
+
+
+def evaluate_testing_lesson(lesson_id: str, namespace: dict[str, object]) -> list[dict[str, object]]:
+    app = app_from(namespace)
+    if lesson_id == "testclient-basics":
+        return [execute_test_function(namespace, "test_read_item"), *evaluate_http_cases(lesson_id, app)]
+    if lesson_id == "dependency-overrides-testing":
+        test_result = execute_test_function(namespace, "test_read_me_with_override")
+        response = TestClient(app).get("/users/me")
+        return [
+            test_result,
+            check("Override cleanup", lambda: app.dependency_overrides == {}, "測試後必須清除 dependency_overrides"),
+            check("Original dependency restored", lambda: response.status_code == 200 and response.json() == {"username": "production"}, "清除後必須恢復正式 dependency"),
+        ]
+    if lesson_id == "testing-lifespan-events":
+        test_result = execute_test_function(namespace, "test_lifespan")
+        events = namespace.get("events")
+        return [
+            test_result,
+            check("Lifespan order", lambda: events == ["startup", "shutdown"], "事件順序必須是 startup、shutdown"),
+            check("Lifespan cleanup", lambda: getattr(app.state, "ready", None) is False, "離開 TestClient context 後必須清理 ready 狀態"),
+        ]
+    if lesson_id == "async-http-tests":
+        function = namespace.get("test_ping")
+        markers = getattr(function, "pytestmark", [])
+        return [
+            execute_test_function(namespace, "test_ping", asynchronous=True),
+            check("AnyIO marker", lambda: any(getattr(marker, "name", None) == "anyio" for marker in markers), "async test 必須使用 pytest.mark.anyio"),
+            *evaluate_http_cases(lesson_id, app),
+        ]
+    if lesson_id == "testing-websockets":
+        return [execute_test_function(namespace, "test_websocket_echo"), *evaluate_websocket(app)]
+    if lesson_id == "testing-database-isolation":
+        test_result = execute_test_function(namespace, "test_create_hero_in_isolated_database")
+        response = TestClient(app).get("/heroes")
+        return [
+            test_result,
+            check("Database override cleanup", lambda: app.dependency_overrides == {}, "測試後必須清除 database override"),
+            check("Main database untouched", lambda: response.status_code == 200 and response.json() == [], "測試資料不得寫入 main_engine"),
+        ]
+    if lesson_id == "debugging-entrypoint":
+        return [
+            execute_test_function(namespace, "test_debug_entrypoint"),
+            check("Safe __main__ guard", has_main_guard, "uvicorn 啟動必須放在 __main__ guard"),
+            *evaluate_http_cases(lesson_id, app),
+        ]
+    raise ValueError(f"Unsupported testing lesson: {lesson_id}")
 
 
 def evaluate_jwt_flow(app: FastAPI) -> list[dict[str, object]]:
@@ -325,6 +532,22 @@ def evaluate(lesson_id: str, namespace: dict[str, object]) -> list[dict[str, obj
         return evaluate_jwt_flow(app_from(namespace))
     if lesson_id == "oauth2-scopes":
         return evaluate_scope_flow(app_from(namespace))
+    if lesson_id == "cors-origins":
+        return evaluate_cors(app_from(namespace))
+    if lesson_id == "lifespan-resources":
+        return evaluate_lifespan(namespace, app_from(namespace))
+    if lesson_id == "websocket-echo":
+        return evaluate_websocket(app_from(namespace))
+    if lesson_id in {
+        "testclient-basics",
+        "dependency-overrides-testing",
+        "testing-lifespan-events",
+        "async-http-tests",
+        "testing-websockets",
+        "testing-database-isolation",
+        "debugging-entrypoint",
+    }:
+        return evaluate_testing_lesson(lesson_id, namespace)
     if lesson_id in HTTP_CASES:
         results = evaluate_http_cases(lesson_id, app_from(namespace))
         if lesson_id == "sqlmodel-table":
@@ -334,6 +557,23 @@ def evaluate(lesson_id: str, namespace: dict[str, object]) -> list[dict[str, obj
         if lesson_id == "session-dependency":
             get_session = namespace.get("get_session")
             results.append(check("Yield dependency", lambda: inspect.isgeneratorfunction(get_session), "get_session 必須 yield Session"))
+        if lesson_id == "settings-environment":
+            settings_type = namespace.get("Settings")
+            get_settings = namespace.get("get_settings")
+            try:
+                from pydantic_settings import BaseSettings
+            except ImportError:
+                BaseSettings = object
+            results.append(check("Settings model", lambda: isinstance(settings_type, type) and issubclass(settings_type, BaseSettings), "Settings 必須繼承 BaseSettings"))
+            results.append(check("Cached settings", lambda: callable(get_settings) and get_settings() is get_settings(), "get_settings 必須快取同一物件"))
+        if lesson_id == "background-tasks":
+            events = namespace.get("events")
+            results.append(check("Background side effect", lambda: events == ["leo@example.com:welcome"], "背景工作必須收到 email 與 welcome"))
+            record_notification = namespace.get("record_notification")
+            results.append(check("Task callable", lambda: callable(record_notification), "必須提供可呼叫的背景 task"))
+        if lesson_id == "streaming-response":
+            log_chunks = namespace.get("log_chunks")
+            results.append(check("Async generator", lambda: inspect.isasyncgenfunction(log_chunks), "log_chunks 必須是 async generator function"))
         if lesson_id == "dataclass-models":
             item_type = namespace.get("Item")
             catalog_type = namespace.get("Catalog")

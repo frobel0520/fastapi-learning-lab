@@ -103,6 +103,22 @@ print(authenticated.status_code, authenticated.json())''',
     "read-pagination": _request("get", "/heroes?offset=1&limit=1"),
     "data-model-separation": _request("post", "/heroes", 'json={"name": "Ada", "age": 36, "secret_name": "Code"}'),
     "update-delete": _request("get", "/heroes/1"),
+    "middleware-process-time": _request("get", "/ping"),
+    "cors-origins": _request("get", "/profile", 'headers={"origin": "https://learn.example.com"}'),
+    "bigger-applications": _request("get", "/api/items/"),
+    "static-files": _request("get", "/static/hello.txt", text=True),
+    "frontend-spa": _request("get", "/api/ping"),
+    "sub-applications": _request("get", "/subapi/reports"),
+    "jinja-templates": _request("get", "/hello/Leo", text=True),
+    "settings-environment": _request("get", "/info"),
+    "wsgi-mount": _request("get", "/legacy/?name=Leo", text=True),
+    "background-tasks": _request("post", "/notifications/leo@example.com"),
+    "stream-json-lines": _request("get", "/items/stream", text=True),
+    "server-sent-events": _request("get", "/progress", text=True),
+    "streaming-response": _request("get", "/logs/stream", text=True),
+    "testclient-basics": _request("get", "/items/7"),
+    "async-http-tests": _request("get", "/ping"),
+    "debugging-entrypoint": _request("get", "/debug-info"),
 }
 
 FASTAPI_OBSERVATIONS["jwt-authentication"] = '''from fastapi.testclient import TestClient
@@ -120,6 +136,56 @@ client = TestClient(app)
 login = client.post("/token", data={"username": "alice", "password": "secret", "scope": "profile:read items:read"})
 token = login.json()["access_token"]
 response = client.get("/items", headers={"authorization": f"Bearer {token}"})
+print(response.status_code)
+print(response.json())'''
+
+FASTAPI_OBSERVATIONS["lifespan-resources"] = '''from fastapi.testclient import TestClient
+
+with TestClient(app) as client:
+    response = client.get("/ready")
+    print(response.status_code)
+    print(response.json())'''
+
+FASTAPI_OBSERVATIONS["websocket-echo"] = '''from fastapi.testclient import TestClient
+
+client = TestClient(app)
+with client.websocket_connect("/ws") as websocket:
+    websocket.send_text("hello")
+    message = websocket.receive_json()
+    print(message)'''
+
+FASTAPI_OBSERVATIONS["dependency-overrides-testing"] = '''from fastapi.testclient import TestClient
+
+app.dependency_overrides[get_current_user] = override_current_user
+try:
+    response = TestClient(app).get("/users/me")
+    print(response.status_code)
+    print(response.json())
+finally:
+    app.dependency_overrides.clear()'''
+
+FASTAPI_OBSERVATIONS["testing-lifespan-events"] = '''from fastapi.testclient import TestClient
+
+events.clear()
+with TestClient(app) as client:
+    response = client.get("/ready")
+    print(response.status_code)
+    print(response.json())
+print(events)'''
+
+FASTAPI_OBSERVATIONS["testing-websockets"] = '''from fastapi.testclient import TestClient
+
+client = TestClient(app)
+with client.websocket_connect("/ws") as websocket:
+    websocket.send_text("hello")
+    message = websocket.receive_json()
+    print(message)'''
+
+FASTAPI_OBSERVATIONS["testing-database-isolation"] = '''from fastapi.testclient import TestClient
+
+client = TestClient(app)
+client.post("/heroes", json={"name": "Grace"})
+response = client.get("/heroes")
 print(response.status_code)
 print(response.json())'''
 
