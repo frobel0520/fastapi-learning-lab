@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.vite/
+.venv/
+__pycache__/
+.pytest_cache/
+.coverage
+.env
+*.pyc
+*.db
+*.tsbuildinfo
+pytest-cache-files-*/
+graphify-out/
+artifacts/session-summaries/
+release/
