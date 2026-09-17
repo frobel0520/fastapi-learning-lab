@@ -1,0 +1,112 @@
+{
+  "module": {
+    "id": "m09-architecture",
+    "order": 9,
+    "title": "大型應用架構",
+    "summary": "用 middleware、router、mount、lifespan 與 settings 組合可維護的 FastAPI 應用。",
+    "lessons": [
+      {"id":"middleware-process-time","title":"HTTP Middleware 與執行順序","duration_minutes":20,"status":"ready"},
+      {"id":"cors-origins","title":"CORS 與瀏覽器 Origin","duration_minutes":20,"status":"ready"},
+      {"id":"bigger-applications","title":"APIRouter 與大型應用","duration_minutes":22,"status":"ready"},
+      {"id":"static-files","title":"掛載 StaticFiles","duration_minutes":18,"status":"ready"},
+      {"id":"frontend-spa","title":"app.frontend 與 SPA Fallback","duration_minutes":20,"status":"ready"},
+      {"id":"sub-applications","title":"獨立 Sub-application","duration_minutes":20,"status":"ready"},
+      {"id":"jinja-templates","title":"Jinja2 Server-side Templates","duration_minutes":22,"status":"ready"},
+      {"id":"lifespan-resources","title":"Lifespan 資源生命週期","duration_minutes":22,"status":"ready"},
+      {"id":"settings-environment","title":"Settings 與環境變數","duration_minutes":22,"status":"ready"},
+      {"id":"wsgi-mount","title":"掛載既有 WSGI 應用","duration_minutes":20,"status":"ready"}
+    ]
+  },
+  "lessons": [
+    {
+      "id":"middleware-process-time","module_id":"m09-architecture","order":1,"title":"HTTP Middleware 與執行順序","duration_minutes":20,"status":"ready",
+      "summary":"HTTP middleware 在每個 path operation 前接收 request，呼叫 call_next 後再攔截 response，適合加入跨端點的觀測資訊。",
+      "objectives":["建立 HTTP middleware","理解 request 與 response 方向","加入自訂 response header"],
+      "concepts":["@app.middleware(\"http\") 套用到應用的每個 HTTP request。","await call_next(request) 是把控制權交給下一層與 endpoint 的必要邊界。","後加入的 middleware 位於外層：request 先執行，response 最後返回。"],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\n\napp = FastAPI()\n\n# 練習：加入 X-Process-Time middleware\n\n@app.get(\"/ping\")\ndef ping():\n    return {\"ok\": True}","solution":"import time\nfrom fastapi import FastAPI, Request\n\napp = FastAPI()\n\n@app.middleware(\"http\")\nasync def add_process_time(request: Request, call_next):\n    started = time.perf_counter()\n    response = await call_next(request)\n    response.headers[\"X-Process-Time\"] = str(time.perf_counter() - started)\n    return response\n\n@app.get(\"/ping\")\ndef ping():\n    return {\"ok\": True}","walkthrough":["perf_counter 適合量測短時間區間。","call_next 執行下一層 middleware 與 endpoint。","response 回傳前加入 X-Process-Time。"]},
+      "exercise":{"title":"替所有回應加入處理時間","prompt":"完成 middleware，讓 GET /ping 保持正常並帶有可解析的 X-Process-Time header。","requirements":["使用 @app.middleware(\"http\")","await call_next(request)","設定 X-Process-Time header"],"hints":["用 time.perf_counter() 計算前後差值"],"checks":["GET /ping 回傳 ok true","X-Process-Time 可轉成非負浮點數"]},
+      "source_url":"https://fastapi.tiangolo.com/tutorial/middleware/"
+    },
+    {
+      "id":"cors-origins","module_id":"m09-architecture","order":2,"title":"CORS 與瀏覽器 Origin","duration_minutes":20,"status":"ready",
+      "summary":"Origin 由協定、網域與連接埠共同決定；CORSMiddleware 用明確 allowlist 回應瀏覽器 preflight。",
+      "objectives":["辨識不同 origin","設定 CORSMiddleware","理解 credentials 與 wildcard 限制"],
+      "concepts":["即使同為 localhost，不同 port 也是不同 origin。","瀏覽器會以 OPTIONS preflight 詢問方法與 headers 是否被允許。","需要 cookies 或 Authorization 時應列出明確 origins，不要依賴 wildcard。"],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\n\napp = FastAPI()\n\n# 練習：允許 https://learn.example.com 跨來源呼叫\n\n@app.get(\"/profile\")\ndef profile():\n    return {\"user\": \"Leo\"}","solution":"from fastapi import FastAPI\nfrom fastapi.middleware.cors import CORSMiddleware\n\napp = FastAPI()\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=[\"https://learn.example.com\"],\n    allow_credentials=True,\n    allow_methods=[\"GET\"],\n    allow_headers=[\"Authorization\"],\n)\n\n@app.get(\"/profile\")\ndef profile():\n    return {\"user\": \"Leo\"}","walkthrough":["allow_origins 使用完整 origin。","allow_credentials 允許帶憑證的瀏覽器請求。","preflight 會檢查 GET 與 Authorization。"]},
+      "exercise":{"title":"建立最小 CORS allowlist","prompt":"只允許指定學習網站以 GET 與 Authorization 呼叫 /profile。","requirements":["加入 CORSMiddleware","明確列出 origin","允許 credentials、GET、Authorization"],"hints":["origin 必須包含 https 協定"],"checks":["合法 preflight 回傳 200","回應允許指定 origin","未知 origin 不會取得 allow-origin header"]},
+      "source_url":"https://fastapi.tiangolo.com/tutorial/cors/"
+    },
+    {
+      "id":"bigger-applications","module_id":"m09-architecture","order":3,"title":"APIRouter 與大型應用","duration_minutes":22,"status":"ready",
+      "summary":"APIRouter 把同一領域的 path operations、prefix 與 tags 收在一起，再由 composition root 組合進主 app。",
+      "objectives":["建立 APIRouter","用 prefix 組合 URL","分清 router 與 FastAPI app"],
+      "concepts":["APIRouter 可放在獨立 package，避免所有 endpoint 堆在 main.py。","include_router 在啟動時複製 path operations，不會增加每次 request 的額外代理層。","同一 router 可用不同 prefix 重複掛入，但 operation ID 必須留意唯一性。"],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\n\napp = FastAPI()\n\n# 練習：建立 items_router 並掛在 /api/items","solution":"from fastapi import APIRouter, FastAPI\n\nitems_router = APIRouter(prefix=\"/items\", tags=[\"items\"])\n\n@items_router.get(\"/\")\ndef list_items():\n    return [{\"id\": 1, \"name\": \"Keyboard\"}]\n\napp = FastAPI()\napp.include_router(items_router, prefix=\"/api\")","walkthrough":["router 管理 items 領域。","router prefix 與 include_router prefix 會組合成 /api/items/。","主 app 保持 composition root 的角色。"]},
+      "exercise":{"title":"組合 items router","prompt":"建立 items_router，讓 GET /api/items/ 回傳一筆商品並出現在 OpenAPI items tag。","requirements":["使用 APIRouter","router prefix 為 /items","app include prefix 為 /api"],"hints":["兩層 prefix 會直接串接"],"checks":["GET /api/items/ 回傳商品","OpenAPI operation 具有 items tag"]},
+      "source_url":"https://fastapi.tiangolo.com/tutorial/bigger-applications/"
+    },
+    {
+      "id":"static-files","module_id":"m09-architecture","order":4,"title":"掛載 StaticFiles","duration_minutes":18,"status":"ready",
+      "summary":"StaticFiles 把一個目錄當成獨立 ASGI 應用掛到路徑下，適合圖片、CSS 與不需 client-side routing 的檔案。",
+      "objectives":["準備靜態目錄","mount StaticFiles","理解 mount 與 APIRouter 的差異"],
+      "concepts":["app.mount 讓子應用處理指定 prefix 下的所有子路徑。","掛載的 StaticFiles 有獨立路由邊界，不會加入主 app OpenAPI。","完整 SPA 應優先使用 app.frontend()，因為它處理 client-side routing fallback。"],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\n\napp = FastAPI()\n\n# 練習：建立 hello.txt 並掛載 /static","solution":"from pathlib import Path\nfrom fastapi import FastAPI\nfrom fastapi.staticfiles import StaticFiles\n\nstatic_dir = Path(\"/tmp/static\")\nstatic_dir.mkdir(exist_ok=True)\n(static_dir / \"hello.txt\").write_text(\"Hello Static\", encoding=\"utf-8\")\n\napp = FastAPI()\napp.mount(\"/static\", StaticFiles(directory=static_dir), name=\"static\")","walkthrough":["練習環境先在可寫的 /tmp 建立檔案。","StaticFiles 綁定實際目錄。","/static/hello.txt 由 mounted app 回傳。"]},
+      "exercise":{"title":"提供靜態文字檔","prompt":"建立並掛載 static 目錄，讓瀏覽器可以讀到 Hello Static。","requirements":["使用 StaticFiles","mount path 為 /static","mount name 為 static"],"hints":["directory 可接受 Path"],"checks":["GET /static/hello.txt 回傳 200","body 是 Hello Static"]},
+      "source_url":"https://fastapi.tiangolo.com/tutorial/static-files/"
+    },
+    {
+      "id":"frontend-spa","module_id":"m09-architecture","order":5,"title":"app.frontend 與 SPA Fallback","duration_minutes":20,"status":"ready",
+      "summary":"app.frontend() 服務 React/Vite build output；API routes 優先匹配，HTML navigation 才落到 SPA index。",
+      "objectives":["掛載前端 build 目錄","保留 API route 優先權","理解 client-side routing fallback"],
+      "concepts":["app.frontend() 底層使用 StaticFiles，但加入前端框架需要的 fallback。","FastAPI 先比對正常 path operations，因此 /api 不會被 SPA 蓋掉。","fallback 主要服務接受 HTML 的 GET/HEAD navigation；不存在的 asset 仍應維持 404。"],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\n\napp = FastAPI()\n\n@app.get(\"/api/ping\")\ndef ping():\n    return {\"api\": True}\n\n# 練習：用 app.frontend 掛載 /tmp/dist","solution":"from pathlib import Path\nfrom fastapi import FastAPI\n\ndist = Path(\"/tmp/dist\")\ndist.mkdir(exist_ok=True)\n(dist / \"index.html\").write_text(\"<h1>Learning SPA</h1>\", encoding=\"utf-8\")\n\napp = FastAPI()\n\n@app.get(\"/api/ping\")\ndef ping():\n    return {\"api\": True}\n\napp.frontend(\"/\", directory=dist)","walkthrough":["先註冊 /api/ping。","frontend 指向 Vite build output 目錄。","/dashboard 沒有 API route 時回傳 index.html 給前端 router。"]},
+      "exercise":{"title":"同時服務 API 與 SPA","prompt":"保留 /api/ping JSON，並讓 /dashboard 導覽回到 React index。","requirements":["使用 app.frontend","path 為 /","directory 指向 dist"],"hints":["測試 HTML navigation 需要 Accept: text/html"],"checks":["/api/ping 仍回傳 JSON","/dashboard 回傳 Learning SPA","不存在的 asset 不被誤判為 index"]},
+      "source_url":"https://fastapi.tiangolo.com/tutorial/frontend/"
+    },
+    {
+      "id":"sub-applications","module_id":"m09-architecture","order":6,"title":"獨立 Sub-application","duration_minutes":20,"status":"ready",
+      "summary":"mount 可把另一個完整 FastAPI app 放在 prefix 下；主 app 與 sub-app 各自保有 routes、docs 與 OpenAPI。",
+      "objectives":["建立第二個 FastAPI instance","mount sub-application","驗證獨立 OpenAPI"],
+      "concepts":["Sub-application 是完整 ASGI app，不是 APIRouter。","app.mount(\"/subapi\", subapi) 會讓子 app 自動取得正確 root_path。","主 app OpenAPI 不包含 sub-app routes；子 app 可在 /subapi/docs 查看自己的文件。"],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\n\napp = FastAPI()\n\n# 練習：建立 subapi 並掛在 /subapi","solution":"from fastapi import FastAPI\n\napp = FastAPI(title=\"Main API\")\nsubapi = FastAPI(title=\"Reports API\")\n\n@app.get(\"/app\")\ndef read_main():\n    return {\"app\": \"main\"}\n\n@subapi.get(\"/reports\")\ndef read_reports():\n    return {\"app\": \"reports\"}\n\napp.mount(\"/subapi\", subapi)","walkthrough":["app 與 subapi 是兩個 FastAPI instances。","mount prefix 不寫進子 app route。","子 OpenAPI 經 /subapi/openapi.json 存取。"]},
+      "exercise":{"title":"掛載 reports 子應用","prompt":"主 app 提供 /app，子 app 在 /subapi/reports 並擁有自己的 OpenAPI。","requirements":["建立 subapi","mount 在 /subapi","子 app title 為 Reports API"],"hints":["subapi route 只需要寫 /reports"],"checks":["主與子 endpoint 都可呼叫","子 OpenAPI title 正確","主 OpenAPI 不包含 /reports"]},
+      "source_url":"https://fastapi.tiangolo.com/advanced/sub-applications/"
+    },
+    {
+      "id":"jinja-templates","module_id":"m09-architecture","order":7,"title":"Jinja2 Server-side Templates","duration_minutes":22,"status":"ready",
+      "summary":"Jinja2Templates 以 request 與 context 渲染 server-side HTML，適合內容頁、後台或不需要完整 SPA 的介面。",
+      "objectives":["設定 Jinja2Templates","回傳 TemplateResponse","傳入 request 與 context"],
+      "concepts":["Jinja2 是額外依賴；FastAPI 的 template helper 來自 Starlette。","TemplateResponse 需要 template 名稱、request 與 context values。","url_for 可在 template 中依 route name 產生 URL，避免硬編碼路徑。"],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\n\napp = FastAPI()\n\n# 練習：GET /hello/{name} 渲染 HTML","solution":"from pathlib import Path\nfrom fastapi import FastAPI, Request\nfrom fastapi.responses import HTMLResponse\nfrom fastapi.templating import Jinja2Templates\n\ntemplate_dir = Path(\"/tmp/templates\")\ntemplate_dir.mkdir(exist_ok=True)\n(template_dir / \"hello.html\").write_text(\"<h1>Hello {{ name }}</h1>\", encoding=\"utf-8\")\ntemplates = Jinja2Templates(directory=template_dir)\napp = FastAPI()\n\n@app.get(\"/hello/{name}\", response_class=HTMLResponse)\ndef hello(request: Request, name: str):\n    return templates.TemplateResponse(request=request, name=\"hello.html\", context={\"name\": name})","walkthrough":["templates object 可跨 routes 重用。","Request 讓 template 能使用 url_for 等 request-aware 功能。","context 的 name 取代 {{ name }}。"]},
+      "exercise":{"title":"渲染個人化 HTML","prompt":"用 hello.html 與 context 讓 GET /hello/Leo 顯示 Hello Leo。","requirements":["使用 Jinja2Templates","endpoint 接收 Request","回傳 TemplateResponse"],"hints":["context key 要與 template 變數同名"],"checks":["GET /hello/Leo 回傳 200","content-type 是 text/html","HTML 包含 Hello Leo"]},
+      "source_url":"https://fastapi.tiangolo.com/advanced/templates/"
+    },
+    {
+      "id":"lifespan-resources","module_id":"m09-architecture","order":8,"title":"Lifespan 資源生命週期","duration_minutes":22,"status":"ready",
+      "summary":"lifespan async context manager 在第一個 request 前初始化共享資源，並在停止服務後可靠清理。",
+      "objectives":["建立 asynccontextmanager","將 lifespan 傳入 FastAPI","驗證 startup 與 shutdown"],
+      "concepts":["yield 前只執行一次初始化，適合 connection pool 或模型載入。","yield 後只執行一次清理，即使中間處理許多 requests。","若提供 lifespan，就不要再混用已棄用的 startup/shutdown event handlers。"],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\n\nresources = {}\napp = FastAPI()\n\n# 練習：以 lifespan 管理 resources","solution":"from contextlib import asynccontextmanager\nfrom fastapi import FastAPI\n\nresources: dict[str, str] = {}\nevents: list[str] = []\n\n@asynccontextmanager\nasync def lifespan(app: FastAPI):\n    resources[\"model\"] = \"ready\"\n    events.append(\"startup\")\n    yield\n    resources.clear()\n    events.append(\"shutdown\")\n\napp = FastAPI(lifespan=lifespan)\n\n@app.get(\"/ready\")\ndef ready():\n    return {\"model\": resources.get(\"model\")}","walkthrough":["asynccontextmanager 把 setup/yield/cleanup 寫在同一處。","TestClient context 會觸發完整 lifespan。","cleanup 清空共享資源並留下 shutdown 記錄。"]},
+      "exercise":{"title":"管理共享模型資源","prompt":"讓 /ready 在 lifespan 內回傳 ready，離開應用後資源必須被清空。","requirements":["使用 @asynccontextmanager","FastAPI(lifespan=lifespan)","yield 前初始化、yield 後清理"],"hints":["測試時需使用 with TestClient(app)"],"checks":["startup 只執行一次","request 期間 model ready","shutdown 後 resources 為空"]},
+      "source_url":"https://fastapi.tiangolo.com/advanced/events/"
+    },
+    {
+      "id":"settings-environment","module_id":"m09-architecture","order":9,"title":"Settings 與環境變數","duration_minutes":22,"status":"ready",
+      "summary":"BaseSettings 讓環境變數經型別驗證成應用設定；dependency 與 lru_cache 讓測試可替換且避免重複解析。",
+      "objectives":["宣告 BaseSettings","從環境變數覆寫預設值","以 cached dependency 注入 settings"],
+      "concepts":["設定與 secrets 應留在程式碼之外，由部署環境提供。","pydantic-settings 依欄位型別解析與驗證環境變數。","@lru_cache 讓 settings 通常只建立一次；dependency override 仍可在測試替換。"],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\n\napp = FastAPI()\n\n# 練習：從 APP_NAME 讀取 typed settings","solution":"from functools import lru_cache\nfrom typing import Annotated\nfrom fastapi import Depends, FastAPI\nfrom pydantic_settings import BaseSettings, SettingsConfigDict\n\nclass Settings(BaseSettings):\n    app_name: str = \"Learning API\"\n    debug: bool = False\n    model_config = SettingsConfigDict(env_prefix=\"\")\n\n@lru_cache\ndef get_settings() -> Settings:\n    return Settings()\n\nSettingsDep = Annotated[Settings, Depends(get_settings)]\napp = FastAPI()\n\n@app.get(\"/info\")\ndef info(settings: SettingsDep):\n    return {\"app_name\": settings.app_name, \"debug\": settings.debug}","walkthrough":["Settings 欄位同時是文件與驗證契約。","env_prefix 留空，因此 APP_NAME 對應 app_name。","cached dependency 避免每個 request 重建設定。"]},
+      "exercise":{"title":"注入 typed settings","prompt":"讓 /info 讀取 APP_NAME 並把布林 debug 保持為明確型別。","requirements":["Settings 繼承 BaseSettings","get_settings 使用 lru_cache","透過 Depends 注入 endpoint"],"hints":["環境變數名稱預設不分大小寫"],"checks":["/info 回傳 typed settings","get_settings 連續呼叫回傳同一物件","Settings 是 BaseSettings subclass"]},
+      "source_url":"https://fastapi.tiangolo.com/advanced/settings/"
+    },
+    {
+      "id":"wsgi-mount","module_id":"m09-architecture","order":10,"title":"掛載既有 WSGI 應用","duration_minutes":20,"status":"ready",
+      "summary":"a2wsgi.WSGIMiddleware 把同步 WSGI 應用轉接成可 mount 的 ASGI app，適合漸進遷移舊系統。",
+      "objectives":["辨識 ASGI 與 WSGI 邊界","使用 a2wsgi adapter","在 prefix 下保留 legacy app"],
+      "concepts":["FastAPI 是 ASGI；Flask、舊 Django 等常見應用使用 WSGI。","目前官方建議從 a2wsgi 匯入 WSGIMiddleware；舊 fastapi.middleware.wsgi 版本已棄用。","adapter 適合共存與漸進遷移，不會自動把 WSGI routes 加入 FastAPI OpenAPI。"],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\n\napp = FastAPI()\n\n# 練習：把 legacy_wsgi 掛在 /legacy","solution":"from urllib.parse import parse_qs\nfrom a2wsgi import WSGIMiddleware\nfrom fastapi import FastAPI\n\ndef legacy_wsgi(environ, start_response):\n    name = parse_qs(environ.get(\"QUERY_STRING\", \"\")).get(\"name\", [\"World\"])[0]\n    body = f\"Hello {name} from WSGI\".encode()\n    start_response(\"200 OK\", [(\"Content-Type\", \"text/plain; charset=utf-8\"), (\"Content-Length\", str(len(body)))])\n    return [body]\n\napp = FastAPI()\n\n@app.get(\"/v2\")\ndef v2():\n    return {\"api\": \"fastapi\"}\n\napp.mount(\"/legacy\", WSGIMiddleware(legacy_wsgi))","walkthrough":["legacy_wsgi 遵守 environ/start_response WSGI 契約。","WSGIMiddleware 完成同步 WSGI 到 ASGI 的轉接。","/v2 與 /legacy 可在同一服務並存。"]},
+      "exercise":{"title":"漸進掛載 legacy app","prompt":"讓 /v2 維持 FastAPI JSON，並讓 /legacy/?name=Leo 回傳 WSGI 文字。","requirements":["從 a2wsgi 匯入 WSGIMiddleware","mount path 為 /legacy","保留 FastAPI /v2 route"],"hints":["WSGI body 必須是 bytes iterable"],"checks":["GET /v2 回傳 FastAPI JSON","GET /legacy/?name=Leo 包含 Hello Leo from WSGI","legacy routes 不進入主 OpenAPI"]},
+      "source_url":"https://fastapi.tiangolo.com/advanced/wsgi/"
+    }
+  ]
+}

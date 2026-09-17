@@ -17,7 +17,7 @@ def test_course_catalog_and_lesson_lookup() -> None:
     assert catalog.status_code == 200
     item = catalog.json()["items"][0]
     assert item["module_count"] == 14
-    assert item["ready_lesson_count"] == 59
+    assert item["ready_lesson_count"] == 81
 
     lesson = client.get("/api/v1/lessons/first-fastapi-app")
     assert lesson.status_code == 200
@@ -45,7 +45,7 @@ def test_course_and_coverage_contracts() -> None:
     coverage = client.get("/api/v1/coverage")
     assert coverage.status_code == 200
     entries = coverage.json()["entries"]
-    assert len(entries) == 49
+    assert len(entries) == 71
     assert all(entry["source_url"].startswith("https://fastapi.tiangolo.com/") for entry in entries)
     coverage_ids = [entry["id"] for entry in entries]
     assert len(coverage_ids) == len(set(coverage_ids))
@@ -56,7 +56,7 @@ def test_course_and_coverage_contracts() -> None:
     module_by_lesson = {lesson["id"]: lesson["module_id"] for lesson in course.json()["lessons"]}
     assert all(entry["module_id"] == module_by_lesson[entry["lesson_id"]] for entry in linked_entries)
     ready_modules = {lesson["module_id"] for lesson in course.json()["lessons"] if lesson["status"] == "ready"}
-    assert {"m02-request-data", "m03-modeling-validation", "m04-http-inputs", "m05-responses-errors", "m06-dependencies", "m07-security", "m08-data"} <= ready_modules
+    assert {"m02-request-data", "m03-modeling-validation", "m04-http-inputs", "m05-responses-errors", "m06-dependencies", "m07-security", "m08-data", "m09-architecture", "m10-realtime"} <= ready_modules
     dependency_lesson_ids = {
         "dependency-basics",
         "class-dependencies",
@@ -99,11 +99,51 @@ def test_course_and_coverage_contracts() -> None:
     data_coverage = [entry for entry in entries if entry["module_id"] == "m08-data"]
     assert data_coverage
     assert all(entry["status"] == "ready" for entry in data_coverage)
+    architecture_lesson_ids = {
+        "middleware-process-time",
+        "cors-origins",
+        "bigger-applications",
+        "static-files",
+        "frontend-spa",
+        "sub-applications",
+        "jinja-templates",
+        "lifespan-resources",
+        "settings-environment",
+        "wsgi-mount",
+    }
+    assert architecture_lesson_ids <= set(lesson_ids)
+    architecture_coverage = [entry for entry in entries if entry["module_id"] == "m09-architecture"]
+    assert len(architecture_coverage) == 10
+    assert all(entry["status"] == "ready" and entry["lesson_id"] in architecture_lesson_ids for entry in architecture_coverage)
+    realtime_lesson_ids = {
+        "background-tasks",
+        "stream-json-lines",
+        "server-sent-events",
+        "streaming-response",
+        "websocket-echo",
+    }
+    assert realtime_lesson_ids <= set(lesson_ids)
+    realtime_coverage = [entry for entry in entries if entry["module_id"] == "m10-realtime"]
+    assert len(realtime_coverage) == 5
+    assert all(entry["status"] == "ready" and entry["lesson_id"] in realtime_lesson_ids for entry in realtime_coverage)
+    testing_lesson_ids = {
+        "testclient-basics",
+        "dependency-overrides-testing",
+        "testing-lifespan-events",
+        "async-http-tests",
+        "testing-websockets",
+        "testing-database-isolation",
+        "debugging-entrypoint",
+    }
+    assert testing_lesson_ids <= set(lesson_ids)
+    testing_coverage = [entry for entry in entries if entry["module_id"] == "m11-testing"]
     modeling_lesson_ids = {"dataclass-models", "pydantic-v2-migration"}
     assert modeling_lesson_ids <= set(lesson_ids)
     modeling_closure = [entry for entry in entries if entry["lesson_id"] in modeling_lesson_ids]
     assert {entry["id"] for entry in modeling_closure} == {"advanced-dataclasses", "recipe-pydantic-v2"}
     assert all(entry["status"] == "ready" and entry["lesson_id"] for entry in entries)
+    assert len(testing_coverage) == 7
+    assert all(entry["status"] == "ready" and entry["lesson_id"] in testing_lesson_ids for entry in testing_coverage)
     assert {entry["id"] for entry in entries if entry["source_url"] in {
         "https://fastapi.tiangolo.com/editor-support/",
         "https://fastapi.tiangolo.com/advanced/security/",
