@@ -189,6 +189,192 @@ response = client.get("/heroes")
 print(response.status_code)
 print(response.json())'''
 
+FASTAPI_OBSERVATIONS.update({
+    "api-metadata-docs": '''from fastapi.testclient import TestClient
+
+client = TestClient(app)
+response = client.get("/items")
+schema = app.openapi()
+print(response.status_code)
+print(response.json())
+print(schema["info"])
+print(schema["tags"])''',
+    "advanced-operation-configuration": '''from fastapi.testclient import TestClient
+
+client = TestClient(app)
+response = client.get("/items/7")
+operation = app.openapi()["paths"]["/items/{item_id}"]["get"]
+print(response.status_code)
+print(response.json())
+print({"operationId": operation["operationId"], "x-audience": operation["x-audience"]})''',
+    "dynamic-status-codes": '''from fastapi.testclient import TestClient
+
+client = TestClient(app)
+created = client.put("/items/pen", json={"name": "Pen"})
+updated = client.put("/items/pen", json={"name": "Blue Pen"})
+print(created.status_code, created.json())
+print(updated.status_code, updated.json())''',
+    "direct-custom-responses": '''from fastapi.testclient import TestClient
+
+response = TestClient(app).get("/legacy")
+print(response.status_code)
+print(response.headers["content-type"])
+print(response.text)''',
+    "additional-openapi-responses": '''from fastapi.testclient import TestClient
+
+client = TestClient(app)
+response = client.get("/items/99")
+responses = app.openapi()["paths"]["/items/{item_id}"]["get"]["responses"]
+print(response.status_code)
+print(response.json())
+print(sorted(responses))''',
+    "response-cookies": '''from fastapi.testclient import TestClient
+
+response = TestClient(app).post("/login")
+print(response.status_code)
+print(response.json())
+print(response.headers["set-cookie"])''',
+    "response-headers": '''from fastapi.testclient import TestClient
+
+response = TestClient(app).get("/items")
+print(response.status_code)
+print(response.json())
+print(response.headers["x-trace-id"])''',
+    "direct-request-access": '''from fastapi.testclient import TestClient
+
+response = TestClient(app).get("/inspect", headers={"x-request-id": "abc"})
+print(response.status_code)
+print(response.json())''',
+    "openapi-callbacks": '''from fastapi.testclient import TestClient
+
+client = TestClient(app)
+response = client.post("/invoices", json={"id": "inv-1", "callback_url": "https://client.example/hook"})
+callbacks_schema = app.openapi()["paths"]["/invoices"]["post"]["callbacks"]
+print(response.status_code)
+print(response.json())
+print(list(callbacks_schema))''',
+    "openapi-webhooks": '''from fastapi.testclient import TestClient
+
+response = TestClient(app).post("/subscriptions", json={"username": "leo"})
+print(response.status_code)
+print(response.json())
+print(list(app.openapi()["webhooks"]))''',
+    "sdk-generation-contract": '''from fastapi.testclient import TestClient
+
+response = TestClient(app).get("/users/7")
+operation = app.openapi()["paths"]["/users/{user_id}"]["get"]
+print(response.status_code)
+print(response.json())
+print({"operationId": operation["operationId"], "tags": operation["tags"]})''',
+    "advanced-union-types": '''from fastapi.testclient import TestClient
+
+client = TestClient(app)
+valid = client.get("/greet?name=Leo")
+missing = client.get("/greet")
+print(valid.status_code, valid.json())
+print(missing.status_code, missing.json())''',
+    "json-base64-bytes": '''from fastapi.testclient import TestClient
+
+response = TestClient(app).post("/decode", json={"data": "SGVsbG8="})
+print(response.status_code)
+print(response.json())''',
+    "strict-content-type": '''from fastapi.testclient import TestClient
+
+client = TestClient(app)
+valid = client.post("/items", json={"name": "Pen"})
+missing = client.post("/items", content='{"name":"Pen"}')
+print(valid.status_code, valid.json())
+print(missing.status_code, missing.json())''',
+    "graphql-strawberry": '''from fastapi.testclient import TestClient
+
+response = TestClient(app).post("/graphql", json={"query": "{ user { name age } }"})
+print(response.status_code)
+print(response.json())''',
+    "custom-gzip-route": '''import gzip
+from fastapi.testclient import TestClient
+
+body = gzip.compress(b'{"name":"Pen"}')
+response = TestClient(app).post(
+    "/items",
+    content=body,
+    headers={"content-type": "application/json", "content-encoding": "gzip"},
+)
+print(response.status_code)
+print(response.json())''',
+    "conditional-openapi": '''from fastapi.testclient import TestClient
+
+client = TestClient(app)
+items = client.get("/items")
+schema = client.get("/openapi.json")
+print(items.status_code, items.json())
+print(schema.status_code)''',
+    "extend-openapi-schema": '''from fastapi.testclient import TestClient
+
+response = TestClient(app).get("/items")
+first = app.openapi()
+second = app.openapi()
+print(response.status_code, response.json())
+print(first["info"]["x-logo"])
+print(first is second)''',
+    "separate-io-schemas": '''from fastapi.testclient import TestClient
+
+response = TestClient(app).post("/items", json={"name": "Pen"})
+operation = app.openapi()["paths"]["/items"]["post"]
+print(response.status_code, response.json())
+print(operation["requestBody"]["content"]["application/json"]["schema"])
+print(operation["responses"]["200"]["content"]["application/json"]["schema"])''',
+    "self-hosted-docs-assets": '''from fastapi.testclient import TestClient
+
+response = TestClient(app).get("/docs")
+print(response.status_code)
+print("/static/swagger-ui-bundle.js" in response.text)
+print("/static/swagger-ui.css" in response.text)''',
+    "configure-swagger-ui": '''from fastapi.testclient import TestClient
+
+response = TestClient(app).get("/docs")
+print(response.status_code)
+print('"deepLinking": false' in response.text)
+print('"theme": "obsidian"' in response.text)''',
+    "fastapi-version-policy": _request("get", "/build"),
+    "fastapi-cloud-options": '''from fastapi.testclient import TestClient
+
+client = TestClient(app)
+managed = client.get("/deployment-choice?managed=true")
+self_managed = client.get("/deployment-choice?managed=false")
+print(managed.status_code, managed.json())
+print(self_managed.status_code, self_managed.json())''',
+    "production-server-command": _request("get", "/server-config"),
+    "deployment-concepts": '''from fastapi.testclient import TestClient
+
+client = TestClient(app)
+live = client.get("/live")
+ready = client.get("/ready")
+print(live.status_code, live.json())
+print(ready.status_code, ready.json())''',
+    "https-termination": '''from fastapi.testclient import TestClient
+
+http = TestClient(app, follow_redirects=False).get("/secure")
+https = TestClient(app, base_url="https://testserver").get("/secure")
+print(http.status_code, http.headers.get("location"))
+print(https.status_code, https.json())''',
+    "proxy-root-path": '''from fastapi.testclient import TestClient
+
+client = TestClient(app)
+response = client.get("/info")
+schema = client.get("/openapi.json").json()
+print(response.status_code, response.json())
+print(schema.get("servers"))''',
+    "server-workers": '''from fastapi.testclient import TestClient
+
+client = TestClient(app)
+cpu_bound = client.get("/worker-plan?cpu=4&memory_mb=1024&per_worker_mb=256")
+memory_bound = client.get("/worker-plan?cpu=8&memory_mb=1024&per_worker_mb=300")
+print(cpu_bound.status_code, cpu_bound.json())
+print(memory_bound.status_code, memory_bound.json())''',
+    "container-readiness": _request("get", "/healthz"),
+    "cloud-provider-readiness": _request("get", "/release"),
+})
+
 
 def _with_execution_guide(lesson: Lesson) -> Lesson:
     invocation = PYTHON_OBSERVATIONS.get(lesson.id)

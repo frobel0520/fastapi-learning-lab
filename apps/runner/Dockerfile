@@ -16,6 +16,7 @@ RUN python -m pip install --no-cache-dir \
     jinja2==3.1.6 \
     a2wsgi==1.10.10 \
     pytest==8.4.2 \
+    strawberry-graphql==0.327.7 \
     uvicorn==0.52.4
 
 COPY harness.py /opt/runner/harness.py
