@@ -13,6 +13,9 @@ dev = ["httpx>=0.28,<1", "pytest>=8.4,<9"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+  "integration: requires a local container engine and the runner image",
+]
 
 [build-system]
 requires = ["hatchling"]
