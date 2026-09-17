@@ -14,9 +14,13 @@ class OutputLimitExceeded(Exception):
 
 RESULT_MARKER = b"\n__FASTAPI_LAB_RESULT__="
 LESSON_TIMEOUT_OVERRIDES = {
+    "password-hashing": 15.0,
+    "oauth2-scopes": 15.0,
+    "sqlmodel-table": 15.0,
     "request-examples": 10.0,
     "dataclass-models": 10.0,
     "pydantic-v2-migration": 10.0,
+    "update-delete": 10.0,
 }
 
 
