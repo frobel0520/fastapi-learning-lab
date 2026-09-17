@@ -11,6 +11,7 @@ from typing import Callable
 
 import jwt
 from fastapi import FastAPI
+from fastapi.routing import APIRoute
 from fastapi.security import HTTPBearer
 from fastapi.testclient import TestClient
 
@@ -258,6 +259,110 @@ HTTP_CASES: dict[str, list[dict[str, object]]] = {
     "debugging-entrypoint": [
         {"name": "Debug endpoint", "path": "/debug-info", "status": 200, "json": {"mode": "debug"}},
     ],
+    "api-metadata-docs": [
+        {"name": "Metadata endpoint", "path": "/items", "status": 200, "json": ["Pen"]},
+        {"name": "Custom OpenAPI URL", "path": "/schema.json", "status": 200},
+        {"name": "Custom docs URL", "path": "/documentation", "status": 200, "text_contains": "Learning API"},
+        {"name": "Default schema disabled", "path": "/openapi.json", "status": 404},
+        {"name": "ReDoc disabled", "path": "/redoc", "status": 404},
+    ],
+    "advanced-operation-configuration": [
+        {"name": "Public operation", "path": "/items/7", "status": 200, "json": {"item_id": 7}},
+        {"name": "Hidden route still callable", "path": "/internal", "status": 200, "json": {"ok": True}},
+    ],
+    "dynamic-status-codes": [
+        {"name": "Create gets 201", "method": "PUT", "path": "/items/pen", "json_body": {"name": "Pen"}, "status": 201, "json": {"name": "Pen"}},
+        {"name": "Update gets 200", "method": "PUT", "path": "/items/pen", "json_body": {"name": "Blue Pen"}, "status": 200, "json": {"name": "Blue Pen"}},
+    ],
+    "direct-custom-responses": [
+        {"name": "XML response", "path": "/legacy", "status": 200, "text": "<message>Hello</message>"},
+    ],
+    "additional-openapi-responses": [
+        {"name": "Existing item", "path": "/items/1", "status": 200, "json": {"id": 1, "name": "Pen"}},
+        {"name": "Documented missing item", "path": "/items/99", "status": 404, "json": {"message": "Item not found"}},
+    ],
+    "response-cookies": [
+        {"name": "Login response", "method": "POST", "path": "/login", "status": 200, "json": {"authenticated": True}},
+    ],
+    "response-headers": [
+        {"name": "Items response", "path": "/items", "status": 200, "json": ["Pen"]},
+    ],
+    "direct-request-access": [
+        {"name": "Request header", "path": "/inspect", "headers": {"x-request-id": "abc"}, "status": 200, "json": {"path": "/inspect", "request_id": "abc"}},
+        {"name": "Request header fallback", "path": "/inspect", "status": 200, "json": {"path": "/inspect", "request_id": "missing"}},
+    ],
+    "openapi-callbacks": [
+        {"name": "Accept invoice", "method": "POST", "path": "/invoices", "json_body": {"id": "inv-1", "callback_url": "https://client.example/hook"}, "status": 200, "json": {"id": "inv-1", "state": "accepted"}},
+    ],
+    "openapi-webhooks": [
+        {"name": "Accept subscription", "method": "POST", "path": "/subscriptions", "json_body": {"username": "leo"}, "status": 200, "json": {"username": "leo"}},
+    ],
+    "sdk-generation-contract": [
+        {"name": "Typed user operation", "path": "/users/7", "status": 200, "json": {"id": 7, "name": "Leo"}},
+    ],
+    "advanced-union-types": [
+        {"name": "Required nullable value", "path": "/greet?name=Leo", "status": 200, "json": {"name": "Leo"}},
+        {"name": "Missing required value", "path": "/greet", "status": 422},
+    ],
+    "json-base64-bytes": [
+        {"name": "Decode Base64", "method": "POST", "path": "/decode", "json_body": {"data": "SGVsbG8="}, "status": 200, "json": {"text": "Hello", "size": 5}},
+        {"name": "Reject invalid Base64", "method": "POST", "path": "/decode", "json_body": {"data": "SGVsbG8"}, "status": 422},
+    ],
+    "strict-content-type": [
+        {"name": "JSON content type", "method": "POST", "path": "/items", "json_body": {"name": "Pen"}, "status": 200, "json": {"name": "Pen"}},
+    ],
+    "graphql-strawberry": [
+        {"name": "GraphQL user query", "method": "POST", "path": "/graphql", "json_body": {"query": "{ user { name age } }"}, "status": 200, "json": {"data": {"user": {"name": "Leo", "age": 30}}}},
+    ],
+    "conditional-openapi": [
+        {"name": "Business route remains", "path": "/items", "status": 200, "json": ["Pen"]},
+        {"name": "OpenAPI endpoint disabled", "path": "/openapi.json", "status": 404},
+    ],
+    "extend-openapi-schema": [
+        {"name": "Extended app route", "path": "/items", "status": 200, "json": ["Pen"]},
+    ],
+    "separate-io-schemas": [
+        {"name": "Default output field", "method": "POST", "path": "/items", "json_body": {"name": "Pen"}, "status": 200, "json": {"name": "Pen", "tags": [], "tag_count": 0}},
+    ],
+    "self-hosted-docs-assets": [
+        {"name": "Custom docs HTML", "path": "/docs", "status": 200, "text_contains": "/static/swagger-ui-bundle.js"},
+        {"name": "Schema remains available", "path": "/openapi.json", "status": 200},
+    ],
+    "configure-swagger-ui": [
+        {"name": "Configured docs HTML", "path": "/docs", "status": 200, "text_contains": "obsidian"},
+        {"name": "Configured app route", "path": "/items", "status": 200, "json": ["Pen"]},
+    ],
+    "fastapi-version-policy": [
+        {"name": "Build metadata", "path": "/build", "status": 200, "json": {"constraint": "fastapi>=0.116.0,<0.117.0", "upgrade_steps": ["read-release-notes", "update-lockfile", "run-tests", "deploy-preview"]}},
+    ],
+    "fastapi-cloud-options": [
+        {"name": "Managed responsibility", "path": "/deployment-choice?managed=true", "status": 200, "json": {"model": "managed", "platform_handles": ["https", "replication"], "team_handles": ["data", "auth", "secrets"]}},
+        {"name": "Self-managed responsibility", "path": "/deployment-choice?managed=false", "status": 200, "json": {"model": "self-managed", "platform_handles": [], "team_handles": ["https", "restarts", "replication", "data", "auth", "secrets"]}},
+        {"name": "Explicit choice required", "path": "/deployment-choice", "status": 422},
+    ],
+    "production-server-command": [
+        {"name": "Production server config", "path": "/server-config", "status": 200, "json": {"import_string": "app.main:app", "host": "0.0.0.0", "port": 8000, "reload": False}},
+    ],
+    "deployment-concepts": [
+        {"name": "Liveness probe", "path": "/live", "status": 200, "json": {"alive": True}},
+        {"name": "Readiness probe", "path": "/ready", "status": 503, "json": {"ready": False}},
+    ],
+    "https-termination": [
+        {"name": "Secure endpoint after redirect", "path": "/secure", "status": 200, "json": {"scheme": "https"}},
+    ],
+    "proxy-root-path": [
+        {"name": "Internal route remains available", "path": "/info", "status": 200},
+    ],
+    "server-workers": [
+        {"name": "CPU bounded workers", "path": "/worker-plan?cpu=4&memory_mb=1024&per_worker_mb=256", "status": 200, "json": {"workers": 4}},
+        {"name": "Memory bounded workers", "path": "/worker-plan?cpu=8&memory_mb=1024&per_worker_mb=300", "status": 200, "json": {"workers": 3}},
+    ],
+    "container-readiness": [
+        {"name": "Container health", "path": "/healthz", "status": 200, "json": {"ready": True, "runtime_uid": 65532}},
+    ],
+    "cloud-provider-readiness": [
+        {"name": "Release metadata", "path": "/release", "status": 200, "json": {"release": "dev", "environment": "local", "gates": ["tests", "preview", "smoke", "rollback-ready"]}},
+    ],
 }
 
 
@@ -349,6 +454,78 @@ def evaluate_http_cases(lesson_id: str, app: FastAPI) -> list[dict[str, object]]
     if lesson_id == "streaming-response":
         response = client.get("/logs/stream")
         results.append(check("Raw stream media type", lambda: response.headers.get("content-type", "").startswith("text/plain"), "必須宣告 text/plain media type"))
+    if lesson_id == "api-metadata-docs":
+        results.append(check("API metadata", lambda: schema["info"].get("title") == "Learning API" and schema["info"].get("version") == "2.0.0" and schema["info"].get("summary") == "進階設計練習", "OpenAPI info metadata 不完整"))
+        results.append(check("Tag metadata", lambda: schema.get("tags") == [{"name": "items", "description": "商品操作"}], "items tag metadata 不正確"))
+    if lesson_id == "advanced-operation-configuration":
+        operation = schema["paths"]["/items/{item_id}"]["get"]
+        results.append(check("Stable operation ID", lambda: operation.get("operationId") == "getItemById", "operationId 必須是 getItemById"))
+        results.append(check("Vendor extension", lambda: operation.get("x-audience") == "public", "缺少 x-audience=public"))
+        results.append(check("Hidden operation", lambda: "/internal" not in schema.get("paths", {}), "/internal 不得出現在 OpenAPI"))
+    if lesson_id == "dynamic-status-codes":
+        responses = schema["paths"]["/items/{item_id}"]["put"]["responses"]
+        results.append(check("Documented statuses", lambda: {"200", "201"} <= set(responses), "OpenAPI 必須列出 200 與 201"))
+    if lesson_id == "direct-custom-responses":
+        response = client.get("/legacy")
+        results.append(check("XML media type", lambda: response.headers.get("content-type", "").startswith("application/xml"), "Content-Type 必須是 application/xml"))
+    if lesson_id == "additional-openapi-responses":
+        responses = schema["paths"]["/items/{item_id}"]["get"]["responses"]
+        error_schema = responses.get("404", {}).get("content", {}).get("application/json", {}).get("schema", {})
+        results.append(check("404 response schema", lambda: responses.get("404", {}).get("description") == "Item not found" and error_schema.get("$ref", "").endswith("/Message"), "404 必須使用 Message schema"))
+    if lesson_id == "response-cookies":
+        response = client.post("/login")
+        cookie = response.headers.get("set-cookie", "").lower()
+        results.append(check("Secure cookie attributes", lambda: "session=abc123" in cookie and "httponly" in cookie and "samesite=lax" in cookie, "session cookie 必須包含 HttpOnly 與 SameSite=lax"))
+    if lesson_id == "response-headers":
+        response = client.get("/items")
+        results.append(check("Trace header", lambda: response.headers.get("x-trace-id") == "trace-123", "X-Trace-Id 必須是 trace-123"))
+    if lesson_id == "openapi-callbacks":
+        callbacks = schema["paths"]["/invoices"]["post"].get("callbacks", {})
+        serialized = json.dumps(callbacks)
+        results.append(check("Callback contract", lambda: bool(callbacks) and "callback_url" in serialized and "InvoiceEvent" in serialized, "callback 必須描述 callback_url 與 InvoiceEvent"))
+    if lesson_id == "openapi-webhooks":
+        webhook = schema.get("webhooks", {}).get("new-subscription", {}).get("post", {})
+        results.append(check("Webhook contract", lambda: bool(webhook) and "Subscription" in json.dumps(webhook), "new-subscription webhook 必須使用 Subscription"))
+    if lesson_id == "sdk-generation-contract":
+        operation = schema["paths"]["/users/{user_id}"]["get"]
+        response_schema = operation["responses"]["200"]["content"]["application/json"]["schema"]
+        results.append(check("SDK operation contract", lambda: operation.get("operationId") == "getUserById" and operation.get("tags") == ["users"] and response_schema.get("$ref", "").endswith("/User"), "SDK operationId、tag 或 User schema 不正確"))
+    if lesson_id == "advanced-union-types":
+        parameter = schema["paths"]["/greet"]["get"]["parameters"][0]
+        results.append(check("Required nullable parameter", lambda: parameter.get("name") == "name" and parameter.get("required") is True, "name 必須是 required query"))
+    if lesson_id == "strict-content-type":
+        response = client.post("/items", content='{"name":"Pen"}')
+        results.append(check("Missing Content-Type rejected", lambda: response.status_code == 422, "缺少 Content-Type 的 JSON 必須回傳 422"))
+    if lesson_id == "graphql-strawberry":
+        results.append(check("GraphQL transport route", lambda: "/graphql" in schema.get("paths", {}) and "user" not in json.dumps(schema["paths"]["/graphql"]), "OpenAPI 可描述 transport route，但不得假裝描述 GraphQL fields"))
+    if lesson_id == "conditional-openapi":
+        results.append(check("OpenAPI URL disabled", lambda: app.openapi_url == "", "app.openapi_url 必須是空字串"))
+    if lesson_id == "extend-openapi-schema":
+        first = app.openapi()
+        second = app.openapi()
+        results.append(check("OpenAPI extension", lambda: first["info"].get("x-logo", {}).get("url") == "https://example.com/logo.svg" and "/items" in first.get("paths", {}), "x-logo 或 /items path 不完整"))
+        results.append(check("OpenAPI cache", lambda: first is second and first is app.openapi_schema, "custom OpenAPI 必須快取 schema"))
+    if lesson_id == "separate-io-schemas":
+        operation = schema["paths"]["/items"]["post"]
+        request_ref = operation["requestBody"]["content"]["application/json"]["schema"].get("$ref")
+        response_ref = operation["responses"]["200"]["content"]["application/json"]["schema"].get("$ref")
+        results.append(check("Separate schemas", lambda: bool(request_ref) and bool(response_ref) and request_ref != response_ref, "request 與 response 必須使用不同 schema"))
+    if lesson_id == "self-hosted-docs-assets":
+        html = client.get("/docs").text
+        results.append(check("Self-hosted assets", lambda: all(path in html for path in ("/static/swagger-ui-bundle.js", "/static/swagger-ui.css", "/static/favicon.png")) and "/docs" not in schema.get("paths", {}), "文件 HTML 必須引用三個自架 assets 且不列入 schema"))
+    if lesson_id == "configure-swagger-ui":
+        html = client.get("/docs").text
+        results.append(check("Swagger UI options", lambda: all(value in html for value in ('"deepLinking": false', '"displayRequestDuration": true', '"theme": "obsidian"')), "Swagger UI options 不完整"))
+    if lesson_id == "https-termination":
+        insecure = TestClient(app, follow_redirects=False).get("/secure")
+        secure = TestClient(app, base_url="https://testserver").get("/secure")
+        results.append(check("HTTPS redirect", lambda: insecure.status_code in {307, 308} and insecure.headers.get("location", "").startswith("https://"), "HTTP 必須 redirect 到 HTTPS"))
+        results.append(check("Secure request", lambda: secure.status_code == 200 and secure.json() == {"scheme": "https"}, "HTTPS request 必須正常回應"))
+    if lesson_id == "proxy-root-path":
+        servers = client.get("/openapi.json").json().get("servers", [])
+        results.append(check("Proxy root path", lambda: app.root_path == "/api/v1" and {"url": "/api/v1"} in servers, "root_path 與 OpenAPI servers 必須包含 /api/v1"))
+    if lesson_id == "container-readiness":
+        results.append(check("Non-root runtime", lambda: client.get("/healthz").json().get("runtime_uid") not in {None, 0}, "runtime UID 不得是 root"))
     return results
 
 
@@ -393,6 +570,24 @@ def evaluate_lifespan(namespace: dict[str, object], app: FastAPI) -> list[dict[s
         check("Lifespan startup", lambda: events == ["startup", "shutdown"], "startup 與 shutdown 必須各執行一次"),
         check("Resource available", lambda: response.status_code == 200 and response.json() == {"model": "ready"} and during == {"model": "ready"}, "request 期間資源必須可用"),
         check("Lifespan cleanup", lambda: resources == {}, "shutdown 後必須清空資源"),
+    ]
+
+
+def evaluate_gzip_route(namespace: dict[str, object], app: FastAPI) -> list[dict[str, object]]:
+    import gzip
+
+    client = TestClient(app)
+    compressed = client.post(
+        "/items",
+        content=gzip.compress(b'{"name":"Pen"}'),
+        headers={"content-type": "application/json", "content-encoding": "gzip"},
+    )
+    regular = client.post("/items", json={"name": "Book"})
+    route_type = namespace.get("GzipRoute")
+    return [
+        check("Gzip JSON body", lambda: compressed.status_code == 200 and compressed.json() == {"name": "Pen"}, "gzip JSON 必須解壓並通過 Item 驗證"),
+        check("Regular JSON body", lambda: regular.status_code == 200 and regular.json() == {"name": "Book"}, "一般 JSON 不得受影響"),
+        check("Custom route class", lambda: isinstance(route_type, type) and issubclass(route_type, APIRoute), "GzipRoute 必須繼承 APIRoute"),
     ]
 
 
@@ -538,6 +733,8 @@ def evaluate(lesson_id: str, namespace: dict[str, object]) -> list[dict[str, obj
         return evaluate_lifespan(namespace, app_from(namespace))
     if lesson_id == "websocket-echo":
         return evaluate_websocket(app_from(namespace))
+    if lesson_id == "custom-gzip-route":
+        return evaluate_gzip_route(namespace, app_from(namespace))
     if lesson_id in {
         "testclient-basics",
         "dependency-overrides-testing",
@@ -611,6 +808,13 @@ def evaluate(lesson_id: str, namespace: dict[str, object]) -> list[dict[str, obj
                 "Compatibility exception",
                 lambda: bearer_type is not None and bearer_type().make_not_authenticated_error().status_code == 403,
                 "make_not_authenticated_error 必須回傳 HTTP 403 exception",
+            ))
+        if lesson_id == "server-workers":
+            recommended_workers = namespace.get("recommended_workers")
+            results.append(check(
+                "Minimum worker",
+                lambda: callable(recommended_workers) and recommended_workers(8, 100, 200) == 1,
+                "低記憶體時仍必須回傳一個 worker",
             ))
         return results
     if lesson_id == "python-type-hints":

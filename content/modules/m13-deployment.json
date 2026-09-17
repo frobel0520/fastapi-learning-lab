@@ -1,0 +1,147 @@
+{
+  "module": {
+    "id": "m13-deployment",
+    "order": 13,
+    "title": "部署與營運",
+    "summary": "把可在本機執行的 FastAPI 服務，提升成可重現、可監控、可安全發布的正式環境；涵蓋版本、程序、HTTPS、proxy、workers、containers 與雲端拓撲。",
+    "lessons": [
+      {"id":"fastapi-version-policy","title":"版本鎖定與安全升級","duration_minutes":24,"status":"ready"},
+      {"id":"fastapi-cloud-options","title":"FastAPI Cloud 與部署選擇","duration_minutes":22,"status":"ready"},
+      {"id":"production-server-command","title":"手動啟動正式伺服器","duration_minutes":24,"status":"ready"},
+      {"id":"deployment-concepts","title":"部署程序與可靠性概念","duration_minutes":30,"status":"ready"},
+      {"id":"https-termination","title":"HTTPS 與 TLS termination","duration_minutes":26,"status":"ready"},
+      {"id":"proxy-root-path","title":"Proxy headers 與 root_path","duration_minutes":28,"status":"ready"},
+      {"id":"server-workers","title":"Server workers 與記憶體模型","duration_minutes":26,"status":"ready"},
+      {"id":"container-readiness","title":"FastAPI 容器與健康檢查","duration_minutes":30,"status":"ready"},
+      {"id":"cloud-provider-readiness","title":"Cloud provider 發布契約","duration_minutes":28,"status":"ready"}
+    ]
+  },
+  "lessons": [
+    {
+      "id":"fastapi-version-policy","module_id":"m13-deployment","order":1,"title":"版本鎖定與安全升級","duration_minutes":24,"status":"ready",
+      "summary":"正式環境必須鎖定已驗證的 FastAPI 版本，透過測試與 lockfile 升級，而不是讓每次部署自動取得未知版本。",
+      "objectives":["分辨精確鎖定與相容版本範圍","理解 FastAPI、Starlette 與 Pydantic 的依賴責任","建立先測試、再升級、再重新鎖定的流程"],
+      "concepts":[
+        "FastAPI 仍快速演進；正式服務應在 pyproject.toml 或 requirements 中聲明已驗證範圍，並把解析結果寫入 lockfile，讓 CI、preview 與 production 安裝同一組套件。",
+        "精確版本 == 適合要求完全可重現的應用；>=A,<B 可接收同一相容區間的修補版，但仍應由 lockfile 控制實際部署版本。不要直接鎖定 Starlette 來越過 FastAPI 的依賴選擇。",
+        "升級不是只改版本字串：先閱讀 release notes，在獨立變更中更新 lockfile，執行 API、schema、runner 與 smoke tests，確認後才發布。失敗時回復上一份 lockfile 與映像版本。",
+        "版本資訊應可被營運系統查到，但不可洩漏 secrets。常見做法是健康或 build endpoint 回傳應用 release 與 framework version，方便定位某台 instance 正在跑什麼。"
+      ],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\n\nFASTAPI_CONSTRAINT = \"\"\nUPGRADE_STEPS: list[str] = []\n\napp = FastAPI()\n\n@app.get(\"/build\")\nasync def build_info() -> dict[str, object]:\n    # 練習：回傳版本策略\n    return {}","solution":"from fastapi import FastAPI\n\nFASTAPI_CONSTRAINT = \"fastapi>=0.116.0,<0.117.0\"\nUPGRADE_STEPS = [\"read-release-notes\", \"update-lockfile\", \"run-tests\", \"deploy-preview\"]\n\napp = FastAPI()\n\n@app.get(\"/build\")\nasync def build_info() -> dict[str, object]:\n    return {\"constraint\": FASTAPI_CONSTRAINT, \"upgrade_steps\": UPGRADE_STEPS}","walkthrough":["constraint 明確限制可接受版本區間。","升級流程先更新 lockfile，再測試與 preview。","/build 只公開非敏感部署資訊。"]},
+      "exercise":{"title":"建立可稽核的版本策略","prompt":"補齊 FastAPI 版本限制與升級步驟，並由 /build 回傳策略。","requirements":["FASTAPI_CONSTRAINT 使用 >=0.116.0,<0.117.0","步驟依序包含 release notes、lockfile、tests、preview","GET /build 回傳完整策略"],"hints":["版本範圍是字串，不需要在練習中安裝套件","RUN & OUTPUT 會呼叫 /build 並 print status code 與 JSON","不要把 print 寫進右側答案"],"checks":["GET /build 回傳 200","版本限制正確","升級步驟順序正確"]},
+      "source_url":"https://fastapi.tiangolo.com/deployment/versions/"
+    },
+    {
+      "id":"fastapi-cloud-options","module_id":"m13-deployment","order":2,"title":"FastAPI Cloud 與部署選擇","duration_minutes":22,"status":"ready",
+      "summary":"管理型平台替你處理 HTTPS、複本與部分營運工作；自管平台給你更多控制，也把更多責任交回團隊。",
+      "objectives":["比較 managed 與 self-managed 部署","辨識平台代管與應用仍需負責的事項","用需求而非品牌決定部署目標"],
+      "concepts":[
+        "FastAPI Cloud 可以透過 FastAPI CLI 發布，並代管 HTTPS、replication 等平台工作；FastAPI 本身仍是開放標準的 ASGI 應用，也能部署到其他雲端或自己的伺服器。",
+        "managed 不等於零責任：應用仍需管理資料、authentication、authorization、secrets、版本相容性、觀測資料與不受信任程式碼的隔離。",
+        "self-managed 可精確控制網路、映像與 runtime，但必須自行處理程序重啟、TLS、擴縮、log、patch、backup 與 incident response。",
+        "本專案選擇 Cloudflare Static Assets + Python Worker，coding runner 另走 Sandbox 邊界；GitHub Pages 只能放 React 靜態檔，不能執行 FastAPI。"
+      ],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI, Query\n\napp = FastAPI()\n\n@app.get(\"/deployment-choice\")\nasync def deployment_choice(managed: bool = Query()) -> dict[str, object]:\n    # 練習：依 managed 回傳平台與團隊責任\n    return {}","solution":"from fastapi import FastAPI, Query\n\napp = FastAPI()\n\n@app.get(\"/deployment-choice\")\nasync def deployment_choice(managed: bool = Query()) -> dict[str, object]:\n    if managed:\n        return {\"model\": \"managed\", \"platform_handles\": [\"https\", \"replication\"], \"team_handles\": [\"data\", \"auth\", \"secrets\"]}\n    return {\"model\": \"self-managed\", \"platform_handles\": [], \"team_handles\": [\"https\", \"restarts\", \"replication\", \"data\", \"auth\", \"secrets\"]}","walkthrough":["Query 參數讓兩種選擇可被直接比較。","managed 只移交部分平台責任。","資料與應用安全永遠留在團隊責任中。"]},
+      "exercise":{"title":"建立部署責任矩陣","prompt":"讓 endpoint 根據 managed 參數回傳平台與團隊各自負責的項目。","requirements":["managed=true 回傳 https 與 replication","兩種模式都把 data、auth、secrets 留給 team","self-managed 額外負責 restarts"],"hints":["先列共同責任，再區分平台工作","RUN & OUTPUT 會分別呼叫 managed=true/false 並 print JSON","不要把 print 寫進右側答案"],"checks":["Managed 模式責任正確","Self-managed 模式責任正確","缺少 managed 時由 FastAPI 回傳 422"]},
+      "source_url":"https://fastapi.tiangolo.com/deployment/fastapicloud/"
+    },
+    {
+      "id":"production-server-command","module_id":"m13-deployment","order":3,"title":"手動啟動正式伺服器","duration_minutes":24,"status":"ready",
+      "summary":"理解 import string、host、port 與 reload 的作用，避免把開發伺服器設定直接帶進 production。",
+      "objectives":["讀懂 app.main:app import string","區分 fastapi dev、fastapi run 與 uvicorn","避免 production 啟用 reload"],
+      "concepts":[
+        "ASGI server 必須先匯入 Python module，再取得 FastAPI instance；app.main:app 的左側是 module path，右側是變數名稱。匯入失敗通常是工作目錄、套件結構或名稱錯誤。",
+        "fastapi dev 為開發體驗設計並啟用自動 reload；fastapi run 或 uvicorn app.main:app 適合正式啟動。reload 會監看檔案並建立額外程序，不應用來承擔 production 流量。",
+        "0.0.0.0 代表監聽容器或主機的所有介面，不是瀏覽器應輸入的目的位址。對外 port 是否可達仍由 container publish、firewall、load balancer 與平台設定決定。",
+        "啟動命令只負責程序；優雅關閉、健康探測、重啟與 log 收集通常由 systemd、container orchestrator 或 cloud platform 管理。"
+      ],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\n\nSERVER_CONFIG = {\n    \"import_string\": \"\",\n    \"host\": \"\",\n    \"port\": 0,\n    \"reload\": True,\n}\n\napp = FastAPI()\n\n@app.get(\"/server-config\")\nasync def server_config() -> dict[str, object]:\n    return SERVER_CONFIG","solution":"from fastapi import FastAPI\n\nSERVER_CONFIG = {\n    \"import_string\": \"app.main:app\",\n    \"host\": \"0.0.0.0\",\n    \"port\": 8000,\n    \"reload\": False,\n}\n\napp = FastAPI()\n\n@app.get(\"/server-config\")\nasync def server_config() -> dict[str, object]:\n    return SERVER_CONFIG","walkthrough":["import string 指向 module 與 app instance。","容器內監聽 0.0.0.0:8000。","正式環境關閉 reload。"]},
+      "exercise":{"title":"描述 production server 設定","prompt":"補齊可由 process manager 使用的 ASGI server 設定。","requirements":["import_string 是 app.main:app","host 是 0.0.0.0、port 是 8000","reload 必須是 False"],"hints":["這題描述啟動設定，不會真的開新 port","RUN & OUTPUT 會呼叫 /server-config 並 print JSON","不要使用 5173"],"checks":["GET /server-config 回傳 200","Import string 正確","Production reload 已關閉"]},
+      "source_url":"https://fastapi.tiangolo.com/deployment/manually/"
+    },
+    {
+      "id":"deployment-concepts","module_id":"m13-deployment","order":4,"title":"部署程序與可靠性概念","duration_minutes":30,"status":"ready",
+      "summary":"正式部署同時處理啟動、重啟、複本、記憶體、啟動前工作與可用性，不只是執行一條 server 指令。",
+      "objectives":["區分 liveness 與 readiness","理解 restart 與 replication 的責任","避免每個 worker 重複執行 migration"],
+      "concepts":[
+        "開機自動啟動確保機器重啟後服務會回來；程序意外退出後的 restart policy 則縮短故障時間。兩者由 process manager 或平台負責，不能只靠 FastAPI route。",
+        "replication 用多個程序或 instance 提高吞吐與可用性，但每個複本都有自己的記憶體。大型模型或 cache 會被複製，容量規劃必須用單一程序記憶體乘上複本數。",
+        "liveness 回答程序是否還活著；readiness 回答它目前能否接流量。資料庫尚未就緒時，程序可能 alive 但不 ready，load balancer 應暫停導流而不是立刻反覆重啟。",
+        "migration、資料預熱等 previous steps 通常必須只執行一次，再啟動多個 workers；若每個 worker 同時 migration，可能造成鎖競爭或資料損壞。"
+      ],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI, Response, status\n\napp = FastAPI()\ndependencies_ready = False\n\n@app.get(\"/live\")\nasync def live() -> dict[str, bool]:\n    return {\"alive\": True}\n\n@app.get(\"/ready\")\nasync def ready(response: Response) -> dict[str, bool]:\n    # 練習：未就緒時回傳 503\n    return {\"ready\": dependencies_ready}","solution":"from fastapi import FastAPI, Response, status\n\napp = FastAPI()\ndependencies_ready = False\n\n@app.get(\"/live\")\nasync def live() -> dict[str, bool]:\n    return {\"alive\": True}\n\n@app.get(\"/ready\")\nasync def ready(response: Response) -> dict[str, bool]:\n    if not dependencies_ready:\n        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE\n    return {\"ready\": dependencies_ready}","walkthrough":["liveness 不依賴外部服務。","readiness 反映 dependencies_ready。","503 告訴平台暫時不要導入流量。"]},
+      "exercise":{"title":"分離 live 與 ready 探測","prompt":"保留永遠可檢查的 liveness，並在 dependency 未就緒時讓 readiness 回傳 503。","requirements":["GET /live 回傳 200 與 alive=true","未就緒的 /ready 回傳 503","ready body 清楚回傳 false"],"hints":["用 Response 參數改變 status_code","RUN & OUTPUT 會呼叫兩個 probe 並 print 結果","readiness 失敗不代表程序必須被殺掉"],"checks":["Liveness 通過","Readiness 未就緒回傳 503","探測 JSON 正確"]},
+      "source_url":"https://fastapi.tiangolo.com/deployment/concepts/"
+    },
+    {
+      "id":"https-termination","module_id":"m13-deployment","order":5,"title":"HTTPS 與 TLS termination","duration_minutes":26,"status":"ready",
+      "summary":"TLS 常在 ingress、load balancer 或 reverse proxy 終止；應用仍需正確辨識原始 scheme，並把 HTTP 導向 HTTPS。",
+      "objectives":["理解 certificate 與 TLS handshake","辨識 TLS termination proxy","用 middleware 強制 HTTPS"],
+      "concepts":[
+        "HTTPS 是 HTTP 經 TLS 加密。憑證把網域與公鑰連結，瀏覽器先驗證憑證並協商加密，再傳送 HTTP request；憑證續期與私鑰保護是營運責任。",
+        "一個 IP 上可服務多個 HTTPS 網域，TLS handshake 會透過 SNI 告知目標 hostname。負責憑證的 termination proxy 解密後，常以內部 HTTP 把 request 轉給 FastAPI。",
+        "應用若在可信 proxy 後方，必須只信任該 proxy 提供的 forwarded headers，否則攻擊者可偽造 scheme 或 client IP。信任範圍由 server/platform 設定，不是無條件接受所有 header。",
+        "HTTPSRedirectMiddleware 可把應用看到的 http/ws 導向 https/wss；若 proxy headers 未正確還原原始 scheme，可能產生無限 redirect。"
+      ],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI, Request\n# 練習：匯入並加入 HTTPSRedirectMiddleware\n\napp = FastAPI()\n\n@app.get(\"/secure\")\nasync def secure(request: Request) -> dict[str, str]:\n    return {\"scheme\": request.url.scheme}","solution":"from fastapi import FastAPI, Request\nfrom fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware\n\napp = FastAPI()\napp.add_middleware(HTTPSRedirectMiddleware)\n\n@app.get(\"/secure\")\nasync def secure(request: Request) -> dict[str, str]:\n    return {\"scheme\": request.url.scheme}","walkthrough":["middleware 在 route 前檢查 scheme。","HTTP request 收到 307 到 HTTPS。","HTTPS request 才進入 /secure。"]},
+      "exercise":{"title":"強制安全 scheme","prompt":"加入 HTTPSRedirectMiddleware，讓 HTTP 導向 HTTPS，安全 request 回傳其 scheme。","requirements":["使用 HTTPSRedirectMiddleware","HTTP /secure 回傳 307 或 308","HTTPS /secure 回傳 200 與 scheme=https"],"hints":["middleware 從 fastapi.middleware.httpsredirect 匯入","RUN & OUTPUT 會用 HTTP 與 HTTPS client 分別呼叫並 print 結果","若部署在 proxy 後方，還要正確設定 forwarded headers"],"checks":["HTTP 會 redirect","Location 使用 https","HTTPS endpoint 正常回應"]},
+      "source_url":"https://fastapi.tiangolo.com/deployment/https/"
+    },
+    {
+      "id":"proxy-root-path","module_id":"m13-deployment","order":6,"title":"Proxy headers 與 root_path","duration_minutes":28,"status":"ready",
+      "summary":"當 proxy 移除公開 URL prefix 時，用 root_path 告訴 FastAPI 外部路徑，讓 OpenAPI 與文件產生正確網址。",
+      "objectives":["理解 forwarded headers 的信任邊界","分辨 route path 與 root_path","讓 proxy prefix 出現在 OpenAPI servers"],
+      "concepts":[
+        "reverse proxy 位於 client 與 ASGI server 之間，可能終止 TLS、加入 X-Forwarded-*，並把公開的 /api/v1/items 轉成內部 /items。應用 route 仍應宣告 /items。",
+        "root_path 是 ASGI scope 中的外部 mount prefix，不是 router prefix。把兩者同時設為 /api/v1 會造成路徑重複；應依 proxy 是否 strip prefix 決定設定。",
+        "FastAPI 可把 root_path 放入 OpenAPI servers，讓 Swagger UI 從正確 prefix 呼叫 API。若平台已注入 root_path，程式不必硬編碼，可由 server 的 --root-path 設定。",
+        "proxy headers 只應信任已知 hop。client host、scheme 與 IP 會影響 redirects、absolute URLs、security logging 和 rate limiting，錯誤信任會成為 spoofing 風險。"
+      ],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI, Request\n\n# 練習：設定公開 prefix /api/v1\napp = FastAPI()\n\n@app.get(\"/info\")\nasync def proxy_info(request: Request) -> dict[str, str]:\n    return {\"root_path\": request.scope.get(\"root_path\", \"\"), \"path\": request.url.path}","solution":"from fastapi import FastAPI, Request\n\napp = FastAPI(root_path=\"/api/v1\")\n\n@app.get(\"/info\")\nasync def proxy_info(request: Request) -> dict[str, str]:\n    return {\"root_path\": request.scope.get(\"root_path\", \"\"), \"path\": request.url.path}","walkthrough":["route 仍是 /info。","root_path 描述 proxy 外部 prefix。","OpenAPI servers 會包含 /api/v1。"]},
+      "exercise":{"title":"設定被 proxy 移除的 prefix","prompt":"讓應用知道公開 URL 前綴是 /api/v1，但內部 route 仍維持 /info。","requirements":["FastAPI root_path 是 /api/v1","GET /info 可呼叫","OpenAPI servers 包含 /api/v1"],"hints":["root_path 是 FastAPI 建構參數","RUN & OUTPUT 會呼叫 /info 並 print scope 與 OpenAPI servers","不要把 prefix 再加到 decorator"],"checks":["內部 route 可用","Scope root_path 正確","OpenAPI server prefix 正確"]},
+      "source_url":"https://fastapi.tiangolo.com/advanced/behind-a-proxy/"
+    },
+    {
+      "id":"server-workers","module_id":"m13-deployment","order":7,"title":"Server workers 與記憶體模型","duration_minutes":26,"status":"ready",
+      "summary":"用多個 worker process 利用多核心與提高並行容量，同時把每個 process 的記憶體、startup 與狀態隔離納入估算。",
+      "objectives":["理解 process replication","依 CPU 與記憶體上限估算 workers","知道何時由平台而非程序管理複本"],
+      "concepts":[
+        "uvicorn --workers N 建立多個獨立 process；每個 process 都載入一次 app、執行自己的 lifespan，並擁有獨立 Python heap。模組全域變數不會在 workers 間同步。",
+        "worker 數不能只套固定公式。CPU-bound 工作受核心數限制；每個 worker 若使用大量記憶體，總量約為單 worker 用量乘上數量，再加上系統與 sidecars。",
+        "在 Kubernetes、Cloud Run、Workers 等平台，常以多個 container/instance 做 replication，每個 container 只跑一個 process，讓平台負責負載平衡、restart 與 scaling。",
+        "本機多 worker 不取代 queue、distributed lock 或共享資料庫。需要跨 process 一致性的進度、rate limit 與 session，必須放在外部服務。"
+      ],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI, Query\n\napp = FastAPI()\n\ndef recommended_workers(cpu_count: int, memory_mb: int, per_worker_mb: int) -> int:\n    # 練習：同時受 CPU 與記憶體限制，至少回傳 1\n    return 0\n\n@app.get(\"/worker-plan\")\nasync def worker_plan(cpu: int = Query(ge=1), memory_mb: int = Query(ge=1), per_worker_mb: int = Query(gt=0)) -> dict[str, int]:\n    return {\"workers\": recommended_workers(cpu, memory_mb, per_worker_mb)}","solution":"from fastapi import FastAPI, Query\n\napp = FastAPI()\n\ndef recommended_workers(cpu_count: int, memory_mb: int, per_worker_mb: int) -> int:\n    memory_limit = max(1, memory_mb // per_worker_mb)\n    return max(1, min(cpu_count, memory_limit))\n\n@app.get(\"/worker-plan\")\nasync def worker_plan(cpu: int = Query(ge=1), memory_mb: int = Query(ge=1), per_worker_mb: int = Query(gt=0)) -> dict[str, int]:\n    return {\"workers\": recommended_workers(cpu, memory_mb, per_worker_mb)}","walkthrough":["memory_limit 用整除取得可容納 workers。","CPU 與 memory 取較小值。","即使資源很小也至少保留一個 worker。"]},
+      "exercise":{"title":"估算安全 worker 數","prompt":"完成 recommended_workers，使 worker 數不超過 CPU 或記憶體容量。","requirements":["4 CPU、1024 MB、每 worker 256 MB 得到 4","8 CPU、1024 MB、每 worker 300 MB 得到 3","結果至少為 1"],"hints":["先算 memory_mb // per_worker_mb","RUN & OUTPUT 會呼叫 /worker-plan 並 print workers","worker 是 process，不共享一般全域變數"],"checks":["CPU 上限正確","記憶體上限正確","低資源仍回傳一個 worker"]},
+      "source_url":"https://fastapi.tiangolo.com/deployment/server-workers/"
+    },
+    {
+      "id":"container-readiness","module_id":"m13-deployment","order":8,"title":"FastAPI 容器與健康檢查","duration_minutes":30,"status":"ready",
+      "summary":"容器映像必須可重現、最小化並以非 root 執行；一個容器內的啟動順序、healthcheck 與 signal handling 也屬於部署契約。",
+      "objectives":["理解 Docker layer cache 與 lockfile","設計 container health endpoint","避免舊 FastAPI base image 與 root runtime"],
+      "concepts":[
+        "建置映像時先複製 dependency manifest/lockfile 並安裝，再複製變動頻繁的 source，可重用 layer cache。部署應使用固定 Python base tag 或 digest並掃描漏洞。",
+        "官方舊式 tiangolo/uvicorn-gunicorn-fastapi base image 已不再是必要選擇；從官方 Python image 建立自己的小映像，直接執行 fastapi run 或 uvicorn，設定更透明。",
+        "映像內建立非 root user、只放 runtime dependencies、不要 bake secrets。secrets 應由平台注入環境或 secret binding；read-only filesystem 與 capabilities 限制則降低入侵後影響。",
+        "一個 container 通常一個 server process；平台發送 SIGTERM 時應停止接新流量並完成 lifespan shutdown。healthcheck 應輕量、穩定，不能在每次探測做昂貴 migration。"
+      ],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI, Response, status\n\napp = FastAPI()\nstartup_complete = True\n\n@app.get(\"/healthz\")\nasync def healthz(response: Response) -> dict[str, object]:\n    # 練習：回傳 container readiness 與非 root runtime UID\n    return {}","solution":"from fastapi import FastAPI, Response, status\n\napp = FastAPI()\nstartup_complete = True\nRUNTIME_UID = 65532\n\n@app.get(\"/healthz\")\nasync def healthz(response: Response) -> dict[str, object]:\n    if not startup_complete:\n        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE\n    return {\"ready\": startup_complete, \"runtime_uid\": RUNTIME_UID}","walkthrough":["startup_complete 表示啟動工作完成。","未就緒時使用 503。","65532 是常見的非 root runtime UID。"]},
+      "exercise":{"title":"建立 container readiness endpoint","prompt":"讓 /healthz 回報啟動狀態與非 root UID，未完成 startup 時必須回傳 503。","requirements":["RUNTIME_UID 不得是 0","ready=true 時回傳 200","body 包含 ready 與 runtime_uid"],"hints":["練習環境目前 startup_complete=True","RUN & OUTPUT 會呼叫 /healthz 並 print JSON","實際 container user 還要在 Dockerfile 設定"],"checks":["Health endpoint 回傳 200","Runtime UID 非 root","Health body 完整"]},
+      "source_url":"https://fastapi.tiangolo.com/deployment/docker/"
+    },
+    {
+      "id":"cloud-provider-readiness","module_id":"m13-deployment","order":9,"title":"Cloud provider 發布契約","duration_minutes":28,"status":"ready",
+      "summary":"把環境差異放在設定與平台 adapter，保持 FastAPI API contract 穩定，並在真正發布前完成 preview、smoke、rollback 與隔離驗證。",
+      "objectives":["建立環境驅動的發布資訊","理解 static frontend 與 API 的跨來源拓撲","定義 preview 到 production 的 release gate"],
+      "concepts":[
+        "雲端供應商可以是 VM、container service、serverless 或 edge runtime。選擇時要核對 Python/ASGI 相容性、啟動時間、request/runtime 限制、持久化、網路、region、觀測與成本。",
+        "本專案核心 FastAPI app 不匯入 Cloudflare SDK；worker.py 是平台 adapter。這讓本機 Uvicorn、測試與其他 container 平台共用同一 API，平台差異停留在 composition root。",
+        "若 React 放在 GitHub Pages，VITE_API_BASE_URL 必須指向獨立 API，FastAPI CORS 要精確允許 Pages origin；若使用 Cloudflare Static Assets 與 Worker 同源，可簡化瀏覽器 CORS，但 runner 仍是獨立安全邊界。",
+        "發布順序應是 build、tests、preview deploy、health/API smoke、人工核准、production，再保留可回復的上一版本。CloudflareSandboxRunner 必須通過 timeout、network、resource、cleanup 與 solution matrix，不能因 Worker adapter 可跑就視為完成。"
+      ],
+      "code":{"filename":"main.py","starter":"import os\nfrom fastapi import FastAPI\n\napp = FastAPI()\n\nRELEASE = os.getenv(\"APP_RELEASE\", \"dev\")\nENVIRONMENT = os.getenv(\"APP_ENV\", \"local\")\n\n@app.get(\"/release\")\nasync def release() -> dict[str, object]:\n    # 練習：回傳 release、environment 與必要 release gates\n    return {}","solution":"import os\nfrom fastapi import FastAPI\n\napp = FastAPI()\n\nRELEASE = os.getenv(\"APP_RELEASE\", \"dev\")\nENVIRONMENT = os.getenv(\"APP_ENV\", \"local\")\nRELEASE_GATES = [\"tests\", \"preview\", \"smoke\", \"rollback-ready\"]\n\n@app.get(\"/release\")\nasync def release() -> dict[str, object]:\n    return {\"release\": RELEASE, \"environment\": ENVIRONMENT, \"gates\": RELEASE_GATES}","walkthrough":["release 與 environment 從部署環境注入。","預設值讓本機仍可執行。","release gates 是發布前的固定契約。"]},
+      "exercise":{"title":"建立 provider-neutral release endpoint","prompt":"用環境變數提供 release metadata，並列出發布前必須通過的 gates。","requirements":["APP_RELEASE 預設 dev、APP_ENV 預設 local","gates 依序包含 tests、preview、smoke、rollback-ready","GET /release 不包含 secrets"],"hints":["使用 os.getenv 的第二個參數提供本機預設值","RUN & OUTPUT 會呼叫 /release 並 print 發布資訊","不要把 token、account ID 或 secret 回傳給 client"],"checks":["GET /release 回傳 200","本機預設 metadata 正確","Release gates 完整"]},
+      "source_url":"https://fastapi.tiangolo.com/deployment/cloud/"
+    }
+  ]
+}

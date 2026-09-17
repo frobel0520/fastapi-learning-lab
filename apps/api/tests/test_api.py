@@ -17,7 +17,7 @@ def test_course_catalog_and_lesson_lookup() -> None:
     assert catalog.status_code == 200
     item = catalog.json()["items"][0]
     assert item["module_count"] == 14
-    assert item["ready_lesson_count"] == 81
+    assert item["ready_lesson_count"] == 111
 
     lesson = client.get("/api/v1/lessons/first-fastapi-app")
     assert lesson.status_code == 200
@@ -45,7 +45,7 @@ def test_course_and_coverage_contracts() -> None:
     coverage = client.get("/api/v1/coverage")
     assert coverage.status_code == 200
     entries = coverage.json()["entries"]
-    assert len(entries) == 71
+    assert len(entries) >= 60
     assert all(entry["source_url"].startswith("https://fastapi.tiangolo.com/") for entry in entries)
     coverage_ids = [entry["id"] for entry in entries]
     assert len(coverage_ids) == len(set(coverage_ids))
@@ -137,20 +137,47 @@ def test_course_and_coverage_contracts() -> None:
     }
     assert testing_lesson_ids <= set(lesson_ids)
     testing_coverage = [entry for entry in entries if entry["module_id"] == "m11-testing"]
+    advanced_lesson_ids = {
+        "api-metadata-docs", "advanced-operation-configuration", "dynamic-status-codes",
+        "direct-custom-responses", "additional-openapi-responses", "response-cookies",
+        "response-headers", "direct-request-access", "openapi-callbacks", "openapi-webhooks",
+        "sdk-generation-contract", "advanced-union-types", "json-base64-bytes",
+        "strict-content-type", "graphql-strawberry", "custom-gzip-route",
+        "conditional-openapi", "extend-openapi-schema", "separate-io-schemas",
+        "self-hosted-docs-assets", "configure-swagger-ui",
+    }
+    assert advanced_lesson_ids <= set(lesson_ids)
+    advanced_coverage = [entry for entry in entries if entry["module_id"] == "m12-advanced"]
+    deployment_lesson_ids = {
+        "fastapi-version-policy", "fastapi-cloud-options", "production-server-command",
+        "deployment-concepts", "https-termination", "proxy-root-path",
+        "server-workers", "container-readiness", "cloud-provider-readiness",
+    }
+    assert deployment_lesson_ids <= set(lesson_ids)
+    deployment_coverage = [entry for entry in entries if entry["module_id"] == "m13-deployment"]
     modeling_lesson_ids = {"dataclass-models", "pydantic-v2-migration"}
     assert modeling_lesson_ids <= set(lesson_ids)
     modeling_closure = [entry for entry in entries if entry["lesson_id"] in modeling_lesson_ids]
     assert {entry["id"] for entry in modeling_closure} == {"advanced-dataclasses", "recipe-pydantic-v2"}
+    assert len(entries) == 105
     assert all(entry["status"] == "ready" and entry["lesson_id"] for entry in entries)
     assert len(testing_coverage) == 7
     assert all(entry["status"] == "ready" and entry["lesson_id"] in testing_lesson_ids for entry in testing_coverage)
+    assert len(advanced_coverage) == 24
+    assert all(entry["status"] == "ready" and entry["lesson_id"] in advanced_lesson_ids for entry in advanced_coverage)
+    assert len(deployment_coverage) == 10
+    assert all(entry["status"] == "ready" and entry["lesson_id"] in deployment_lesson_ids for entry in deployment_coverage)
     assert {entry["id"] for entry in entries if entry["source_url"] in {
         "https://fastapi.tiangolo.com/editor-support/",
         "https://fastapi.tiangolo.com/advanced/security/",
+        "https://fastapi.tiangolo.com/deployment/",
+        "https://fastapi.tiangolo.com/how-to/general/",
         "https://fastapi.tiangolo.com/how-to/authentication-error-status-code/",
     }} == {
         "editor-support",
         "advanced-security-overview",
+        "deployment-overview",
+        "recipe-general",
         "recipe-authentication-403",
     }
 
