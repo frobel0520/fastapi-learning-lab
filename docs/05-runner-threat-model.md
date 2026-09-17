@@ -41,6 +41,25 @@ The FastAPI process never imports or evaluates learner code. The local adapter s
 - Memory bombs and fork bombs are not actively launched in shared CI; their flags are contract-tested. A dedicated disposable security environment is required for destructive probes.
 - The local queue is process-local and does not provide distributed fairness, identity quotas, or abuse accounting.
 
+## Browser runner (GitHub Pages)
+
+The static site has no server. Learner code runs in the learner's own browser tab, inside a dedicated Web Worker running Pyodide. The protected assets shrink to the learner's tab responsiveness and the integrity of feedback.
+
+| Threat | Browser control | Automated evidence |
+|---|---|---|
+| Infinite loop / CPU exhaustion | 20 s timeout, then the worker is terminated and rebuilt on the next run; the UI thread stays responsive | manual browser check; CI cannot interrupt a busy in-process runtime |
+| Output flood | stdout/stderr writes fail beyond 64 KB; unbuffered streams keep rejected output out of the next run | `verify:browser-runner` flood + reuse checks |
+| Checker mismatch between runtimes | the same `harness.py` runs in Pyodide against every reference solution | `browser-runner` CI job |
+| State leaking between lessons | SQLModel metadata cleared before every run; each run re-executes `main.py` in a fresh namespace | per-lesson matrix in one runtime |
+| Dependency drift | Pyodide version and package pins are constants; a unit test keeps pins equal to the runner image | `pyodide-core.test.ts` |
+
+Accepted limitations:
+
+- Hidden checks and reference solutions are shipped to the browser. Checks are learning feedback, not certification.
+- Worker code can use the network and the site's origin like any script the learner pastes into DevTools. Only run code you understand; the site stores nothing beyond local workspace drafts.
+- Pyodide and packages load from jsDelivr and PyPI at pinned top-level versions; transitive dependencies follow the Pyodide lock and PyPI resolution.
+- Requires WebAssembly JSPI (verified on Chrome). Browsers without it get an `unavailable` result instead of a partial run.
+
 ## Cloudflare handoff requirements
 
 `CloudflareSandboxRunner` must preserve the request and response schema, one execution per isolated sandbox lifecycle, network policy, timeout, output bounds, non-root execution, concurrency controls, cleanup evidence, and the same solution matrix. Platform-specific limits must be recorded before the public release gate is approved.

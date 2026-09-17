@@ -5,8 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:static": "vite --mode static",
     "build": "tsc -b && vite build",
-    "test": "node --test --experimental-strip-types tests/api-config.test.ts tests/editor-state.test.ts tests/workspace-state.test.ts tests/lab-layout.test.ts tests/pyodide-core.test.ts",
+    "build:static": "tsc -b && vite build --mode static",
+    "test": "node --test --experimental-strip-types tests/api-config.test.ts tests/editor-state.test.ts tests/workspace-state.test.ts tests/lab-layout.test.ts tests/pyodide-core.test.ts tests/site-mode.test.ts",
     "typecheck": "tsc -b --pretty false",
     "verify:browser-runner": "node --experimental-wasm-jspi --experimental-strip-types scripts/verify-browser-runner.ts",
     "preview": "vite preview"
