@@ -1,0 +1,97 @@
+{
+  "id": "fastapi-complete-guide",
+  "title": "FastAPI 完整指南",
+  "locale": "zh-Hant",
+  "status": "draft",
+  "source_url": "https://fastapi.tiangolo.com/learn/",
+  "modules": [
+    {"id":"m00-foundations","order":0,"title":"Python 與 Web API 基礎","summary":"先建立讀懂 FastAPI 所需的 Python、非同步與 HTTP 心智模型。","lessons":[
+      {"id":"python-type-hints","title":"Python 型別提示","duration_minutes":14,"status":"ready"},
+      {"id":"async-await","title":"async / await 與並行","duration_minutes":16,"status":"ready"},
+      {"id":"http-api-mental-model","title":"HTTP 與 API 心智模型","duration_minutes":15,"status":"ready"}
+    ]},
+    {"id":"m01-first-api","order":1,"title":"第一支 FastAPI","summary":"建立應用程式、宣告 path operation，並使用自動文件、CLI 與編輯器支援。","lessons":[
+      {"id":"first-fastapi-app","title":"建立第一個 FastAPI app","duration_minutes":18,"status":"ready"},
+      {"id":"path-operation","title":"Path operation 解剖","duration_minutes":18,"status":"ready"},
+      {"id":"automatic-docs-openapi","title":"自動文件與 OpenAPI","duration_minutes":16,"status":"ready"},
+      {"id":"fastapi-cli","title":"FastAPI CLI 開發流程","duration_minutes":14,"status":"ready"}
+    ]},
+    {"id":"m02-request-data","order":2,"title":"Path、Query 與 Body","summary":"從 URL 到 JSON body，正確描述所有輸入。","lessons":[]},
+    {"id":"m03-modeling-validation","order":3,"title":"資料模型與驗證","summary":"用 Pydantic 建立可靠、可重用的資料契約。","lessons":[]},
+    {"id":"m04-http-inputs","order":4,"title":"Header、Cookie、Form 與 File","summary":"處理 JSON 以外的常見 HTTP 輸入。","lessons":[]},
+    {"id":"m05-responses-errors","order":5,"title":"回應、狀態與錯誤","summary":"控制輸出 schema、狀態碼與失敗契約。","lessons":[]},
+    {"id":"m06-dependencies","order":6,"title":"依賴注入","summary":"用 dependency system 組合驗證、資源與共用行為。","lessons":[]},
+    {"id":"m07-security","order":7,"title":"OAuth2、JWT 與權限","summary":"從登入流程到 scopes，建立可測試的安全邊界。","lessons":[]},
+    {"id":"m08-data","order":8,"title":"SQL 與資料層","summary":"設計 session、transaction 與可替換的資料存取層。","lessons":[]},
+    {"id":"m09-architecture","order":9,"title":"大型應用架構","summary":"APIRouter、settings、lifespan、middleware 與 CORS。","lessons":[]},
+    {"id":"m10-realtime","order":10,"title":"背景與即時資料","summary":"Background Tasks、JSONL、SSE 與 WebSockets。","lessons":[]},
+    {"id":"m11-testing","order":11,"title":"測試與除錯","summary":"TestClient、dependency overrides、async tests 與 debugging。","lessons":[]},
+    {"id":"m12-advanced","order":12,"title":"進階 API 設計","summary":"進階 responses、OpenAPI、callbacks、webhooks 與 SDK。","lessons":[]},
+    {"id":"m13-deployment","order":13,"title":"部署與營運","summary":"HTTPS、workers、containers 與 Cloudflare 發布路徑。","lessons":[]}
+  ],
+  "lessons": [
+    {
+      "id":"python-type-hints","module_id":"m00-foundations","order":1,"title":"Python 型別提示","duration_minutes":14,"status":"ready",
+      "summary":"型別提示不會改變 Python 執行方式，卻能讓編輯器、Pydantic 與 FastAPI共同理解資料契約。",
+      "objectives":["讀懂參數與回傳型別","分辨執行期資料與靜態型別資訊","理解 FastAPI 如何使用型別產生驗證與文件"],
+      "concepts":["name: str 描述呼叫者應傳入字串；-> dict[str, str] 描述函式回傳形狀。","Python 本身仍是動態語言；FastAPI 會在執行期讀取型別資訊並建立 request schema。","型別越精確，錯誤越早被發現，OpenAPI 文件也越可信。"],
+      "code":{"filename":"main.py","starter":"def greeting(name):\n    return {\"message\": f\"Hello {name}\"}","solution":"def greeting(name: str) -> dict[str, str]:\n    return {\"message\": f\"Hello {name}\"}","walkthrough":["name: str 是參數契約。","dict[str, str] 表示 key 與 value 都是字串。","型別提示同時服務人、編輯器與框架。"]},
+      "exercise":{"title":"補上清楚的型別契約","prompt":"替 greeting 的參數與回傳值加入型別提示，不改變函式行為。","requirements":["name 必須標註為 str","回傳型別必須是 dict[str, str]"],"hints":["參數型別寫在參數名稱後方","回傳型別寫在 -> 後方"],"checks":["函式可接受字串","回傳型別註記正確","回傳內容維持不變"]},
+      "source_url":"https://fastapi.tiangolo.com/python-types/"
+    },
+    {
+      "id":"async-await","module_id":"m00-foundations","order":2,"title":"async / await 與並行","duration_minutes":16,"status":"ready",
+      "summary":"非同步的價值不是讓 CPU 工作變快，而是在等待 I/O 時把執行機會交給其他請求。",
+      "objectives":["辨認 I/O 等待","理解 await 的讓出點","選擇 async def 或 def"],
+      "concepts":["網路、資料庫與檔案通常包含等待；await 讓 event loop 在此時處理別的工作。","只能在 async def 內使用 await。","若第三方函式庫是同步阻塞 API，可用一般 def 讓 FastAPI 在 thread pool 執行。"],
+      "code":{"filename":"main.py","starter":"import asyncio\n\nasync def fetch_user():\n    asyncio.sleep(0.1)\n    return {\"id\": 7}","solution":"import asyncio\n\nasync def fetch_user() -> dict[str, int]:\n    await asyncio.sleep(0.1)\n    return {\"id\": 7}","walkthrough":["async def 建立 coroutine function。","await 標示可暫停並讓出控制權的位置。","asyncio.sleep 模擬非阻塞 I/O。","呼叫 async 函式只會取得 coroutine；需要由事件迴圈驅動後，才會得到真正的回傳值。"]},
+      "exercise":{"title":"修復遺漏的 await","prompt":"讓 fetch_user 真正等待非同步操作，並保持明確的回傳型別。","requirements":["使用 await asyncio.sleep","保留 async def","加入回傳型別"],"hints":["呼叫 coroutine 不等於執行完成","await 放在 asyncio.sleep 前"],"checks":["沒有未 await coroutine 警告","函式回傳 id 7","函式仍為 coroutine function"]},
+      "source_url":"https://fastapi.tiangolo.com/async/"
+    },
+    {
+      "id":"http-api-mental-model","module_id":"m00-foundations","order":3,"title":"HTTP 與 API 心智模型","duration_minutes":15,"status":"ready",
+      "summary":"每次 API 互動都可拆成 method、path、輸入、處理與 response；FastAPI 只是讓這份契約可由 Python 描述。",
+      "objectives":["拆解 request 與 response","分辨 method、path、status 與 body","用一致語言描述 endpoint"],
+      "concepts":["GET 通常讀取資源，POST 通常提交新資料；語意比名稱更重要。","Path 決定資源位置，query 常用於篩選，body 承載結構化資料。","Response 由 status code、headers 與 body 組成。"],
+      "code":{"filename":"main.py","starter":"request = {\"path\": \"/items/42\", \"body\": None}","solution":"request = {\"method\": \"GET\", \"path\": \"/items/42\", \"body\": None}\nresponse = {\"status\": 200, \"body\": {\"id\": 42}}","walkthrough":["method 描述操作語意。","path 指向資源。","status 讓客戶端先判斷結果類型。"]},
+      "exercise":{"title":"補完 HTTP 交換","prompt":"描述讀取 item 42 的 request，並建立成功 response。","requirements":["method 為 GET","path 為 /items/42","response status 為 200"],"hints":["GET 讀取通常沒有 body","成功讀取使用 200"],"checks":["request 欄位完整","response 含 status 與 body","body 的 id 為 42"]},
+      "source_url":"https://fastapi.tiangolo.com/tutorial/first-steps/"
+    },
+    {
+      "id":"first-fastapi-app","module_id":"m01-first-api","order":1,"title":"建立第一個 FastAPI app","duration_minutes":18,"status":"ready",
+      "summary":"用 FastAPI instance 與一個 decorator，把 Python 函式公開成 HTTP endpoint。",
+      "objectives":["建立 FastAPI instance","註冊 GET endpoint","回傳可序列化的 JSON 資料"],
+      "concepts":["FastAPI() 是應用程式與路由的組合根。","@app.get(\"/\") 把 method 與 path 綁到下方函式。","dictionary 會轉成 JSON response。"],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\n\napp = FastAPI()\n\n@app.get(\"/\")\nasync def root() -> dict[str, str]:\n    return {\"message\": \"Hello World\"}\n\n# 練習：在下方新增 GET /health","solution":"from fastapi import FastAPI\n\napp = FastAPI()\n\n@app.get(\"/\")\nasync def root() -> dict[str, str]:\n    return {\"message\": \"Hello World\"}\n\n@app.get(\"/health\")\nasync def health() -> dict[str, str]:\n    return {\"status\": \"ok\"}","walkthrough":["匯入 FastAPI class。","建立 ASGI application instance。","decorator 註冊 route，函式提供處理邏輯。"]},
+      "exercise":{"title":"建立 health endpoint","prompt":"新增 GET /health，回傳 {\"status\": \"ok\"}。","requirements":["使用 @app.get(\"/health\")","回傳 status: ok","加入回傳型別"],"hints":["route decorator 放在函式正上方","dictionary 會自動轉成 JSON"],"checks":["GET /health 回傳 200","JSON 等於 {status: ok}","content-type 是 application/json"]},
+      "source_url":"https://fastapi.tiangolo.com/tutorial/first-steps/"
+    },
+    {
+      "id":"path-operation","module_id":"m01-first-api","order":2,"title":"Path operation 解剖","duration_minutes":18,"status":"ready",
+      "summary":"Path operation 是 method、path、處理函式與 metadata 的完整組合。",
+      "objectives":["辨認 path operation decorator","建立固定路徑與動態路徑","避免 route 宣告順序陷阱"],
+      "concepts":["operation 指 HTTP method，path 指 URL 路徑。","動態片段用 {item_id} 宣告，FastAPI 會把值傳入同名參數。","固定路徑應放在可能攔截它的動態路徑之前。"],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\n\napp = FastAPI()\n\n@app.get(\"/items/{item_id}\")\nasync def read_item(item_id):\n    return {\"item_id\": item_id}","solution":"from fastapi import FastAPI\n\napp = FastAPI()\n\n@app.get(\"/items/{item_id}\")\nasync def read_item(item_id: int) -> dict[str, int]:\n    return {\"item_id\": item_id}","walkthrough":["{item_id} 宣告 path parameter。","函式參數名稱必須對應。","int 型別讓字串路徑值被解析與驗證。"]},
+      "exercise":{"title":"讓 path parameter 具有型別","prompt":"把 item_id 驗證為整數並回傳相同值。","requirements":["item_id 標註 int","回傳 dict[str, int]","保留 /items/{item_id}"],"hints":["URL 值最初是字串","FastAPI 依參數型別轉換"],"checks":["/items/42 回傳 42","/items/not-a-number 回傳 422","OpenAPI 顯示 integer schema"]},
+      "source_url":"https://fastapi.tiangolo.com/tutorial/path-params/"
+    },
+    {
+      "id":"automatic-docs-openapi","module_id":"m01-first-api","order":3,"title":"自動文件與 OpenAPI","duration_minutes":16,"status":"ready",
+      "summary":"FastAPI 從 routes 與型別產生 OpenAPI，Swagger UI 與 ReDoc 只是這份契約的互動檢視器。",
+      "objectives":["找到 OpenAPI schema","使用 /docs 與 /redoc","理解程式碼與文件同步的條件"],
+      "concepts":["預設 schema 位於 /openapi.json。","/docs 使用 Swagger UI，/redoc 使用 ReDoc。","文件品質取決於型別、模型與 path operation metadata 是否完整。"],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\n\napp = FastAPI()\n\n@app.get(\"/items/{item_id}\")\nasync def read_item(item_id: int):\n    return {\"item_id\": item_id}","solution":"from fastapi import FastAPI\n\napp = FastAPI(title=\"Catalog API\", version=\"1.0.0\")\n\n@app.get(\"/items/{item_id}\", summary=\"讀取單一商品\")\nasync def read_item(item_id: int) -> dict[str, int]:\n    return {\"item_id\": item_id}","walkthrough":["app metadata 會出現在 API 文件。","operation summary 幫助讀者掃描 endpoint。","型別被轉換成 OpenAPI schema。"]},
+      "exercise":{"title":"改善 API 文件","prompt":"加入應用程式標題、版本與 operation summary。","requirements":["title 為 Catalog API","version 為 1.0.0","route 具有 summary"],"hints":["FastAPI constructor 接受 metadata","decorator 也接受 metadata"],"checks":["openapi.info.title 正確","openapi.info.version 正確","operation summary 存在"]},
+      "source_url":"https://fastapi.tiangolo.com/tutorial/first-steps/"
+    },
+    {
+      "id":"fastapi-cli","module_id":"m01-first-api","order":4,"title":"FastAPI CLI 開發流程","duration_minutes":14,"status":"ready",
+      "summary":"FastAPI CLI 讀取 Python app、啟動開發伺服器；完整型別提示也讓編輯器能提供補全、檢查與重構支援。",
+      "objectives":["使用 fastapi dev","理解 module 與 app instance","善用型別提示提供的編輯器支援","分辨開發模式和正式啟動"],
+      "concepts":["fastapi dev 針對本機開發，預設提供自動重載。","CLI 需要定位 Python module 裡的 ASGI app。","FastAPI 建立在 Python 型別提示上；支援 Python 的編輯器可理解 request、response 與 dependency 型別，提供自動補全並提早標示錯誤。","型別提示屬於程式契約，不應只為消除編輯器警告而改成 Any；明確型別也會被 FastAPI 用於驗證與 OpenAPI。","正式環境不應把開發用 reload 當成部署策略。"],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\n\napplication = FastAPI()","solution":"from fastapi import FastAPI\n\napp = FastAPI()\n\n@app.get(\"/health\")\nasync def health() -> dict[str, str]:\n    return {\"status\": \"ok\"}\n\n# 開發指令：fastapi dev main.py","walkthrough":["main.py 是 module 檔案。","app 是慣用的 ASGI instance 名稱。","fastapi dev 會啟動本機開發流程。"]},
+      "exercise":{"title":"建立可啟動且型別清楚的入口","prompt":"把 instance 命名為 app，新增具回傳型別的 health route，並寫出開發指令。","requirements":["instance 名為 app","具有 GET /health","health 函式具有明確回傳型別","使用 fastapi dev main.py"],"hints":["CLI 會從檔案尋找 FastAPI app","明確的參數與回傳型別可同時幫助編輯器、FastAPI 驗證和 OpenAPI","開發指令不需要手寫 uvicorn import string"],"checks":["module 可匯入 app","health route 已註冊","指令使用 fastapi dev"]},
+      "source_url":"https://fastapi.tiangolo.com/fastapi-cli/"
+    }
+  ]
+}
