@@ -7,7 +7,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 RUN python -m pip install --no-cache-dir \
     fastapi==0.141.1 \
-    httpx==0.28.1
+    httpx==0.28.1 \
+    python-multipart==0.0.22
 
 COPY harness.py /opt/runner/harness.py
 

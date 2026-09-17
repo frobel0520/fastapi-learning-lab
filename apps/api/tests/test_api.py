@@ -17,7 +17,7 @@ def test_course_catalog_and_lesson_lookup() -> None:
     assert catalog.status_code == 200
     item = catalog.json()["items"][0]
     assert item["module_count"] == 14
-    assert item["ready_lesson_count"] == 7
+    assert item["ready_lesson_count"] == 35
 
     lesson = client.get("/api/v1/lessons/first-fastapi-app")
     assert lesson.status_code == 200
@@ -45,7 +45,7 @@ def test_course_and_coverage_contracts() -> None:
     coverage = client.get("/api/v1/coverage")
     assert coverage.status_code == 200
     entries = coverage.json()["entries"]
-    assert len(entries) == 6
+    assert len(entries) == 33
     assert all(entry["source_url"].startswith("https://fastapi.tiangolo.com/") for entry in entries)
     coverage_ids = [entry["id"] for entry in entries]
     assert len(coverage_ids) == len(set(coverage_ids))
@@ -56,7 +56,11 @@ def test_course_and_coverage_contracts() -> None:
     module_by_lesson = {lesson["id"]: lesson["module_id"] for lesson in course.json()["lessons"]}
     assert all(entry["module_id"] == module_by_lesson[entry["lesson_id"]] for entry in linked_entries)
     ready_modules = {lesson["module_id"] for lesson in course.json()["lessons"] if lesson["status"] == "ready"}
-    assert {"m00-foundations", "m01-first-api"} <= ready_modules
+    assert {"m02-request-data", "m03-modeling-validation", "m04-http-inputs", "m05-responses-errors"} <= ready_modules
+    modeling_lesson_ids = {"dataclass-models", "pydantic-v2-migration"}
+    assert modeling_lesson_ids <= set(lesson_ids)
+    modeling_closure = [entry for entry in entries if entry["lesson_id"] in modeling_lesson_ids]
+    assert {entry["id"] for entry in modeling_closure} == {"advanced-dataclasses", "recipe-pydantic-v2"}
     assert all(entry["status"] == "ready" and entry["lesson_id"] for entry in entries)
     assert {entry["id"] for entry in entries if entry["source_url"] in {
         "https://fastapi.tiangolo.com/editor-support/",
