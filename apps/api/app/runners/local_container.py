@@ -13,7 +13,11 @@ class OutputLimitExceeded(Exception):
 
 
 RESULT_MARKER = b"\n__FASTAPI_LAB_RESULT__="
-LESSON_TIMEOUT_OVERRIDES: dict[str, float] = {}
+LESSON_TIMEOUT_OVERRIDES = {
+    "request-examples": 10.0,
+    "dataclass-models": 10.0,
+    "pydantic-v2-migration": 10.0,
+}
 
 
 class LocalContainerRunner:

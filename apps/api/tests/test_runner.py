@@ -35,7 +35,11 @@ def test_container_command_enforces_security_boundary() -> None:
     assert ("--pids-limit", "64") in pairs
     assert ("--pull", "never") in pairs
     assert ("--ulimit", "nofile=64:64") in pairs
-    assert LESSON_TIMEOUT_OVERRIDES == {}
+    assert LESSON_TIMEOUT_OVERRIDES == {
+        "request-examples": 10.0,
+        "dataclass-models": 10.0,
+        "pydantic-v2-migration": 10.0,
+    }
 
 
 def test_execution_route_depends_on_runner_contract() -> None:
