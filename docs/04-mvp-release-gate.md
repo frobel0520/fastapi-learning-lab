@@ -1,6 +1,6 @@
 # 04 MVP Release Gate
 
-目前狀態：本機 MVP 功能與課程範圍完成；公開 Cloudflare runner 尚未達 release gate。
+目前狀態：本機 MVP 功能與課程範圍完成；公開展示改採 GitHub Pages 靜態站 + 瀏覽器內 Pyodide runner（T009、T010）。Cloudflare runner 需要付費方案，暫不進行。
 
 ## Completed locally
 
@@ -22,7 +22,13 @@
 - Cloudflare 同源部署會讓 React 使用目前 origin；核心 FastAPI app 與平台 adapter 維持分離。
 - 鍵盤分頁語意、跳至主要內容、mobile 課程選擇器、Coding 返回路徑、44px mobile controls 與 live output semantics 已加入。
 
-## Required before public MVP
+## Public showcase (GitHub Pages)
+
+- 課程內容於 build 時匯出為靜態 JSON，Pages 不需要 API。
+- `browser-runner` CI job 在 Pyodide 中跑完 111 堂參考解答與錯誤答案、print output、output flood、flood 後重用檢查。
+- 瀏覽器內 20 秒 timeout 會終止並重建 Web Worker；不支援 JSPI 的瀏覽器回傳 `unavailable`。
+
+## Required before a paid cloud release
 
 - 在 GitHub 建立各 task 的 Issue／branch／PR，並設定 `web`、`api`、`runner-image` required checks。
 - 設定 GitHub Pages repository variable `VITE_API_BASE_URL`，完成 Pages preview smoke test。
