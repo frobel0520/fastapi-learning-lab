@@ -75,7 +75,53 @@ print(response.json())''',
     "path-operation-configuration": _request("get", "/legacy"),
     "json-compatible-encoder": _request("get", "/payload"),
     "body-updates": _request("patch", "/items/1", 'json={"price": 5}'),
+    "dependency-basics": _request("get", "/items?q=api&skip=2&limit=3"),
+    "class-dependencies": _request("get", "/items?q=api&skip=1&limit=4"),
+    "callable-dependencies": _request("get", "/check?q=Learn%20FastAPI"),
+    "sub-dependencies": _request("get", "/search?q=request"),
+    "dependency-caching": _request("get", "/cached"),
+    "decorator-dependencies": _request("get", "/items", 'headers={"x-token": "lab-secret"}'),
+    "router-dependencies": _request("get", "/admin/status", 'headers={"x-key": "admin-key"}'),
+    "global-dependencies": _request("get", "/items", 'headers={"x-key": "global-key"}'),
+    "yield-dependencies": _request("get", "/resource"),
+    "oauth2-password-bearer": _request("get", "/token-info", 'headers={"authorization": "Bearer abc"}'),
+    "current-user-dependency": _request("get", "/users/me", 'headers={"authorization": "Bearer alice"}'),
+    "oauth2-password-form": _request("post", "/token", 'data={"username": "alice", "password": "swordfish"}'),
+    "password-hashing": _request("post", "/verify", 'data={"username": "alice", "password": "swordfish"}'),
+    "active-user": _request("get", "/users/me", 'headers={"authorization": "Bearer alice"}'),
+    "legacy-authentication-403": '''from fastapi.testclient import TestClient
+
+client = TestClient(app)
+missing = client.get("/me")
+authenticated = client.get("/me", headers={"authorization": "Bearer abc"})
+print(missing.status_code, missing.json())
+print(authenticated.status_code, authenticated.json())''',
+    "sqlmodel-table": _request("post", "/heroes", 'json={"name": "Ada", "secret_name": "Code"}'),
+    "sqlite-engine-tables": _request("get", "/db-info"),
+    "session-dependency": _request("get", "/session-check"),
+    "create-rows": _request("post", "/heroes", 'json={"name": "Ada"}'),
+    "read-pagination": _request("get", "/heroes?offset=1&limit=1"),
+    "data-model-separation": _request("post", "/heroes", 'json={"name": "Ada", "age": 36, "secret_name": "Code"}'),
+    "update-delete": _request("get", "/heroes/1"),
 }
+
+FASTAPI_OBSERVATIONS["jwt-authentication"] = '''from fastapi.testclient import TestClient
+
+client = TestClient(app)
+login = client.post("/token", data={"username": "alice", "password": "swordfish"})
+token = login.json()["access_token"]
+response = client.get("/users/me", headers={"authorization": f"Bearer {token}"})
+print(response.status_code)
+print(response.json())'''
+
+FASTAPI_OBSERVATIONS["oauth2-scopes"] = '''from fastapi.testclient import TestClient
+
+client = TestClient(app)
+login = client.post("/token", data={"username": "alice", "password": "secret", "scope": "profile:read items:read"})
+token = login.json()["access_token"]
+response = client.get("/items", headers={"authorization": f"Bearer {token}"})
+print(response.status_code)
+print(response.json())'''
 
 
 def _with_execution_guide(lesson: Lesson) -> Lesson:

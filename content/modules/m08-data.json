@@ -1,0 +1,82 @@
+{
+  "module": {
+    "id": "m08-data",
+    "order": 8,
+    "title": "SQL 與資料層",
+    "summary": "用 SQLModel 建立資料表、request-scoped session 與可驗證的 CRUD 邊界。",
+    "lessons": [
+      {"id":"sqlmodel-table","title":"SQLModel Table Model","duration_minutes":20,"status":"ready"},
+      {"id":"sqlite-engine-tables","title":"SQLite Engine 與建表","duration_minutes":20,"status":"ready"},
+      {"id":"session-dependency","title":"Session Dependency","duration_minutes":22,"status":"ready"},
+      {"id":"create-rows","title":"新增、Commit 與 Refresh","duration_minutes":22,"status":"ready"},
+      {"id":"read-pagination","title":"Select、Offset 與 Limit","duration_minutes":22,"status":"ready"},
+      {"id":"data-model-separation","title":"Table 與 API Models 分離","duration_minutes":24,"status":"ready"},
+      {"id":"update-delete","title":"更新與刪除資料","duration_minutes":26,"status":"ready"}
+    ]
+  },
+  "lessons": [
+    {
+      "id":"sqlmodel-table","module_id":"m08-data","order":1,"title":"SQLModel Table Model","duration_minutes":20,"status":"ready",
+      "summary":"SQLModel 結合 SQLAlchemy table metadata 與資料模型能力；table=True 才會把 class 映射成資料表。",
+      "objectives":["宣告 SQLModel table","設定自動產生的 primary key","分辨 table row 與 API input model 的責任"],
+      "concepts":["table=True 讓 class 成為 ORM table model。","id 在寫入前可以是 None，因此使用 int | None；資料庫寫入後才配置值。","Table model 主要代表資料庫 row；需要嚴格 request 契約時，應另外建立純資料 model，本模組後面會實作。"],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\nfrom sqlmodel import SQLModel\n\napp = FastAPI()\n\n# 練習：建立 Hero table model","solution":"from fastapi import FastAPI\nfrom sqlmodel import Field, SQLModel\n\nclass Hero(SQLModel, table=True):\n    id: int | None = Field(default=None, primary_key=True)\n    name: str = Field(index=True)\n    secret_name: str\n\napp = FastAPI()\n\n@app.post(\"/heroes\")\ndef validate_hero(hero: Hero) -> Hero:\n    return hero","walkthrough":["Hero 同時是 request schema 與 table mapping。","id 尚未寫入資料庫時為 None。","name 的 index metadata 可供建表使用。"]},
+      "exercise":{"title":"宣告 Hero 資料表","prompt":"建立具有自動 id、索引 name 與 secret_name 欄位的 SQLModel table。","requirements":["Hero 繼承 SQLModel 並設定 table=True","id 是 optional primary key","name 設定 index=True"],"hints":["從 sqlmodel 匯入 Field","主鍵可用 default=None"],"checks":["完整 Hero 可序列化","id 欄位是 primary key","name 欄位具有 index metadata"]},
+      "source_url":"https://fastapi.tiangolo.com/tutorial/sql-databases/"
+    },
+    {
+      "id":"sqlite-engine-tables","module_id":"m08-data","order":2,"title":"SQLite Engine 與建表","duration_minutes":20,"status":"ready",
+      "summary":"Engine 管理資料庫連線；metadata.create_all() 依所有 table models 建立尚不存在的資料表。",
+      "objectives":["建立 SQLite engine","理解一個應用通常共用一個 engine","用 metadata 建立 tables"],
+      "concepts":["Engine 是應用程式與資料庫之間的連線入口，不等同於單一 Session。","本練習使用記憶體 SQLite 與 StaticPool，讓同一個 container 內的連線共享資料。","正式環境通常改用 PostgreSQL 與 migration 工具，而不是每次靠 create_all 管理 schema 演進。"],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\nfrom sqlmodel import SQLModel\n\napp = FastAPI()\n\n# 練習：建立 engine 與 heroes table","solution":"from fastapi import FastAPI\nfrom sqlalchemy import inspect\nfrom sqlmodel import Field, SQLModel, create_engine\nfrom sqlmodel.pool import StaticPool\n\nclass Hero(SQLModel, table=True):\n    id: int | None = Field(default=None, primary_key=True)\n    name: str\n\nengine = create_engine(\n    \"sqlite://\",\n    connect_args={\"check_same_thread\": False},\n    poolclass=StaticPool,\n)\nSQLModel.metadata.create_all(engine)\napp = FastAPI()\n\n@app.get(\"/db-info\")\ndef db_info() -> dict[str, list[str]]:\n    return {\"tables\": inspect(engine).get_table_names()}","walkthrough":["sqlite:// 建立記憶體資料庫。","StaticPool 讓不同 request 使用同一個記憶體資料庫。","create_all 讀取 Hero 的 table metadata。"]},
+      "exercise":{"title":"建立記憶體資料庫","prompt":"建立共享的 SQLite 記憶體 engine，並由 metadata 產生 hero table。","requirements":["使用 create_engine","設定 check_same_thread=False 與 StaticPool","呼叫 SQLModel.metadata.create_all"],"hints":["記憶體 URL 使用 sqlite://","資料表名稱預設由 class 名稱轉成小寫"],"checks":["engine 可連線","資料庫包含 hero table"]},
+      "source_url":"https://fastapi.tiangolo.com/tutorial/sql-databases/"
+    },
+    {
+      "id":"session-dependency","module_id":"m08-data","order":3,"title":"Session Dependency","duration_minutes":22,"status":"ready",
+      "summary":"用 yield dependency 為每個 request 提供一個 Session，完成後自動離開 context manager 並釋放資源。",
+      "objectives":["建立 get_session dependency","用 Annotated 重用 SessionDep","理解同一 request 的 dependency cache"],
+      "concepts":["Session 追蹤物件變更並透過 engine 與資料庫溝通。","with Session(engine) 配合 yield，讓 FastAPI 在 response 後執行關閉流程。","同一 request 重複依賴 get_session 時預設會共用快取結果。"],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\nfrom sqlmodel import SQLModel\n\napp = FastAPI()\n\n# 練習：注入 request-scoped Session","solution":"from typing import Annotated\nfrom fastapi import Depends, FastAPI\nfrom sqlmodel import Session, create_engine\nfrom sqlmodel.pool import StaticPool\n\nengine = create_engine(\n    \"sqlite://\",\n    connect_args={\"check_same_thread\": False},\n    poolclass=StaticPool,\n)\n\ndef get_session():\n    with Session(engine) as session:\n        yield session\n\nSessionDep = Annotated[Session, Depends(get_session)]\napp = FastAPI()\n\n@app.get(\"/session-check\")\ndef session_check(\n    first: SessionDep,\n    second: Annotated[Session, Depends(get_session)],\n) -> dict[str, bool]:\n    return {\"same_session\": first is second, \"active\": first.is_active}","walkthrough":["get_session 每個 request 建立一次 Session。","SessionDep 把型別與 dependency 宣告綁在一起。","first 與 second 因 request cache 指向同一個物件。"]},
+      "exercise":{"title":"注入單一 Session","prompt":"用 yield dependency 讓同一 request 中的兩個參數取得相同且有效的 Session。","requirements":["使用 with Session(engine)","dependency 必須 yield session","建立 Annotated SessionDep"],"hints":["Depends 預設 use_cache=True"],"checks":["session 在 endpoint 內有效","同一 request 共用 session","get_session 是 generator function"]},
+      "source_url":"https://fastapi.tiangolo.com/tutorial/sql-databases/"
+    },
+    {
+      "id":"create-rows","module_id":"m08-data","order":4,"title":"新增、Commit 與 Refresh","duration_minutes":22,"status":"ready",
+      "summary":"add 將物件加入 Session，commit 寫入 transaction，refresh 再從資料庫取得自動生成欄位。",
+      "objectives":["新增 ORM row","提交 transaction","取得資料庫生成的 primary key"],
+      "concepts":["session.add() 只把物件排入待處理狀態。","session.commit() 完成 transaction；失敗時實務程式需 rollback。","session.refresh() 重新載入 row，讓自動 id 等值可立即回傳。"],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\nfrom sqlmodel import SQLModel\n\napp = FastAPI()\n\n# 練習：POST /heroes 新增資料","solution":"from typing import Annotated\nfrom fastapi import Depends, FastAPI\nfrom sqlmodel import Field, Session, SQLModel, create_engine\nfrom sqlmodel.pool import StaticPool\n\nclass Hero(SQLModel, table=True):\n    id: int | None = Field(default=None, primary_key=True)\n    name: str\n\nengine = create_engine(\"sqlite://\", connect_args={\"check_same_thread\": False}, poolclass=StaticPool)\nSQLModel.metadata.create_all(engine)\n\ndef get_session():\n    with Session(engine) as session:\n        yield session\n\nSessionDep = Annotated[Session, Depends(get_session)]\napp = FastAPI()\n\n@app.post(\"/heroes\", status_code=201)\ndef create_hero(hero: Hero, session: SessionDep) -> Hero:\n    session.add(hero)\n    session.commit()\n    session.refresh(hero)\n    return hero","walkthrough":["request body 先建立尚無 id 的 Hero。","commit 將 INSERT 寫入資料庫。","refresh 取得 SQLite 配置的 id。"]},
+      "exercise":{"title":"持久化 Hero","prompt":"POST /heroes 後回傳 201 與資料庫生成的連續 id。","requirements":["呼叫 add、commit、refresh","使用注入的 Session","status code 為 201"],"hints":["refresh 放在 commit 之後"],"checks":["第一筆 id 為 1","第二筆 id 為 2","回應為 201"]},
+      "source_url":"https://fastapi.tiangolo.com/tutorial/sql-databases/"
+    },
+    {
+      "id":"read-pagination","module_id":"m08-data","order":5,"title":"Select、Offset 與 Limit","duration_minutes":22,"status":"ready",
+      "summary":"select() 建立查詢；offset 與 limit 提供可預期的分頁邊界，FastAPI Query 負責輸入限制。",
+      "objectives":["用 select 讀取 rows","加入 offset/limit","限制單次回傳量"],
+      "concepts":["session.exec(select(Hero)) 執行 typed SQLModel query。","offset 跳過前 N 筆，limit 限制這次最多取幾筆。","API 必須限制 limit，避免未設上限的查詢拖垮服務。"],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\nfrom sqlmodel import SQLModel\n\napp = FastAPI()\n\n# 練習：GET /heroes 支援分頁","solution":"from typing import Annotated\nfrom fastapi import Depends, FastAPI, Query\nfrom sqlmodel import Field, Session, SQLModel, create_engine, select\nfrom sqlmodel.pool import StaticPool\n\nclass Hero(SQLModel, table=True):\n    id: int | None = Field(default=None, primary_key=True)\n    name: str\n\nengine = create_engine(\"sqlite://\", connect_args={\"check_same_thread\": False}, poolclass=StaticPool)\nSQLModel.metadata.create_all(engine)\nwith Session(engine) as seed:\n    seed.add_all([Hero(name=\"Ada\"), Hero(name=\"Lin\"), Hero(name=\"Grace\")])\n    seed.commit()\n\ndef get_session():\n    with Session(engine) as session:\n        yield session\n\nSessionDep = Annotated[Session, Depends(get_session)]\napp = FastAPI()\n\n@app.get(\"/heroes\")\ndef read_heroes(\n    session: SessionDep,\n    offset: int = 0,\n    limit: Annotated[int, Query(ge=1, le=100)] = 100,\n) -> list[Hero]:\n    return list(session.exec(select(Hero).offset(offset).limit(limit)).all())","walkthrough":["select(Hero) 產生資料表查詢。","offset 與 limit 在 SQL 層套用。","Query 先拒絕超過 100 的輸入。"]},
+      "exercise":{"title":"建立分頁查詢","prompt":"讀取 Hero 列表，limit 限制在 1 到 100。","requirements":["使用 select(Hero)","套用 offset 與 limit","limit 設定 ge=1、le=100"],"hints":["用 session.exec(...).all() 取得結果"],"checks":["offset=1&limit=1 回傳第二筆","limit=101 回傳 422"]},
+      "source_url":"https://fastapi.tiangolo.com/tutorial/sql-databases/"
+    },
+    {
+      "id":"data-model-separation","module_id":"m08-data","order":6,"title":"Table 與 API Models 分離","duration_minutes":24,"status":"ready",
+      "summary":"分開 HeroCreate、Hero table 與 HeroPublic，避免資料庫欄位直接成為公開 API 契約。",
+      "objectives":["共用 HeroBase 欄位","分離 input/table/output models","避免 secret_name 出現在 response"],
+      "concepts":["HeroCreate 描述客戶端可提交的欄位。","Hero(table=True) 加入 primary key 與只存在資料層的欄位。","HeroPublic 是 response boundary；即使 ORM 物件包含 secret，FastAPI 也只輸出允許欄位。"],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\nfrom sqlmodel import SQLModel\n\napp = FastAPI()\n\n# 練習：分離 create、table、public models","solution":"from typing import Annotated\nfrom fastapi import Depends, FastAPI\nfrom sqlmodel import Field, Session, SQLModel, create_engine\nfrom sqlmodel.pool import StaticPool\n\nclass HeroBase(SQLModel):\n    name: str = Field(index=True)\n    age: int | None = None\n\nclass Hero(HeroBase, table=True):\n    id: int | None = Field(default=None, primary_key=True)\n    secret_name: str\n\nclass HeroCreate(HeroBase):\n    secret_name: str\n\nclass HeroPublic(HeroBase):\n    id: int\n\nengine = create_engine(\"sqlite://\", connect_args={\"check_same_thread\": False}, poolclass=StaticPool)\nSQLModel.metadata.create_all(engine)\n\ndef get_session():\n    with Session(engine) as session:\n        yield session\n\nSessionDep = Annotated[Session, Depends(get_session)]\napp = FastAPI()\n\n@app.post(\"/heroes\", response_model=HeroPublic, status_code=201)\ndef create_hero(hero: HeroCreate, session: SessionDep):\n    db_hero = Hero.model_validate(hero)\n    session.add(db_hero)\n    session.commit()\n    session.refresh(db_hero)\n    return db_hero","walkthrough":["HeroBase 避免重複公開欄位。","HeroCreate 接收 secret_name。","HeroPublic 不宣告 secret_name，因此 response 會過濾它。"]},
+      "exercise":{"title":"保護資料層欄位","prompt":"接受 secret_name 建立 Hero，但 response 只能包含 id、name、age。","requirements":["建立 HeroCreate 與 HeroPublic","使用 response_model=HeroPublic","由 Hero.model_validate 建立 table object"],"hints":["輸出 model 不要宣告 secret_name"],"checks":["建立資料回傳 201","response 不含 secret_name","OpenAPI response 使用公開 schema"]},
+      "source_url":"https://fastapi.tiangolo.com/tutorial/sql-databases/"
+    },
+    {
+      "id":"update-delete","module_id":"m08-data","order":7,"title":"更新與刪除資料","duration_minutes":26,"status":"ready",
+      "summary":"PATCH 只更新客戶端實際提供的欄位；DELETE 移除 row，兩者都要處理不存在資源。",
+      "objectives":["用 exclude_unset 實作 partial update","提交更新與刪除 transaction","建立一致的 404 契約"],
+      "concepts":["model_dump(exclude_unset=True) 能區分沒提供欄位與明確提供 null。","sqlmodel_update() 將 partial dictionary 套用到 ORM object。","update 與 delete 都要 commit；查無 row 時先回傳 404。"],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\nfrom sqlmodel import SQLModel\n\napp = FastAPI()\n\n# 練習：PATCH 與 DELETE /heroes/{hero_id}","solution":"from typing import Annotated\nfrom fastapi import Depends, FastAPI, HTTPException\nfrom sqlmodel import Field, Session, SQLModel, create_engine\nfrom sqlmodel.pool import StaticPool\n\nclass Hero(SQLModel, table=True):\n    id: int | None = Field(default=None, primary_key=True)\n    name: str\n    age: int | None = None\n\nclass HeroUpdate(SQLModel):\n    name: str | None = None\n    age: int | None = None\n\nengine = create_engine(\"sqlite://\", connect_args={\"check_same_thread\": False}, poolclass=StaticPool)\nSQLModel.metadata.create_all(engine)\nwith Session(engine) as seed:\n    seed.add(Hero(name=\"Ada\", age=36))\n    seed.commit()\n\ndef get_session():\n    with Session(engine) as session:\n        yield session\n\nSessionDep = Annotated[Session, Depends(get_session)]\napp = FastAPI()\n\ndef find_hero(hero_id: int, session: Session) -> Hero:\n    hero = session.get(Hero, hero_id)\n    if hero is None:\n        raise HTTPException(status_code=404, detail=\"Hero not found\")\n    return hero\n\n@app.get(\"/heroes/{hero_id}\")\ndef read_hero(hero_id: int, session: SessionDep) -> Hero:\n    return find_hero(hero_id, session)\n\n@app.patch(\"/heroes/{hero_id}\")\ndef update_hero(hero_id: int, patch: HeroUpdate, session: SessionDep) -> Hero:\n    hero = find_hero(hero_id, session)\n    hero.sqlmodel_update(patch.model_dump(exclude_unset=True))\n    session.add(hero)\n    session.commit()\n    session.refresh(hero)\n    return hero\n\n@app.delete(\"/heroes/{hero_id}\")\ndef delete_hero(hero_id: int, session: SessionDep) -> dict[str, bool]:\n    hero = find_hero(hero_id, session)\n    session.delete(hero)\n    session.commit()\n    return {\"ok\": True}","walkthrough":["find_hero 集中 404 邊界。","exclude_unset 只保留 request 中出現的欄位。","delete 後 commit 才會完成 transaction。"]},
+      "exercise":{"title":"完成 CRUD 生命週期","prompt":"PATCH 只更新 name，DELETE 後相同 id 應回傳 404。","requirements":["使用 exclude_unset=True","使用 sqlmodel_update","更新與刪除都 commit"],"hints":["先用 session.get 取得 ORM object"],"checks":["PATCH 保留未提供的 age","DELETE 回傳 ok true","刪除後 GET 回傳 404"]},
+      "source_url":"https://fastapi.tiangolo.com/tutorial/sql-databases/"
+    }
+  ]
+}

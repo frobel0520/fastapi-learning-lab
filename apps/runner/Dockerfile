@@ -8,7 +8,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN python -m pip install --no-cache-dir \
     fastapi==0.141.1 \
     httpx==0.28.1 \
-    python-multipart==0.0.22
+    python-multipart==0.0.22 \
+    pyjwt==2.14.0 \
+    "pwdlib[argon2]==0.3.1" \
+    sqlmodel==0.0.42
 
 COPY harness.py /opt/runner/harness.py
 
