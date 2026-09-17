@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "source_index_url": "https://fastapi.tiangolo.com/learn/",
+  "checked_at": "2026-09-16",
+  "target_fastapi_version": "0.141.1",
+  "entries": [
+    {"id":"learn-python-types","category":"learn","module_id":"m00-foundations","title":"Python Types Intro","source_url":"https://fastapi.tiangolo.com/python-types/","status":"ready","lesson_id":"python-type-hints"},
+    {"id":"learn-async","category":"learn","module_id":"m00-foundations","title":"Concurrency and async / await","source_url":"https://fastapi.tiangolo.com/async/","status":"ready","lesson_id":"async-await"},
+    {"id":"tutorial-first-steps","category":"tutorial","module_id":"m01-first-api","title":"First Steps","source_url":"https://fastapi.tiangolo.com/tutorial/first-steps/","status":"ready","lesson_id":"first-fastapi-app"},
+    {"id":"tutorial-path-params","category":"tutorial","module_id":"m01-first-api","title":"Path Parameters","source_url":"https://fastapi.tiangolo.com/tutorial/path-params/","status":"ready","lesson_id":"path-operation"},
+    {"id":"fastapi-cli","category":"learn","module_id":"m01-first-api","title":"FastAPI CLI","source_url":"https://fastapi.tiangolo.com/fastapi-cli/","status":"ready","lesson_id":"fastapi-cli"},
+    {"id":"editor-support","category":"learn","module_id":"m01-first-api","title":"Editor Support","source_url":"https://fastapi.tiangolo.com/editor-support/","status":"ready","lesson_id":"fastapi-cli"}
+  ]
+}
