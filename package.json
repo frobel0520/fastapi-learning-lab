@@ -1,0 +1,18 @@
+{
+  "name": "fastapi-learning-lab",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@11.19.0",
+  "workspaces": ["apps/web"],
+  "scripts": {
+    "dev:web": "pnpm --filter @fastapi-lab/web dev",
+    "build:web": "pnpm --filter @fastapi-lab/web build",
+    "build:runner": "podman build --tag localhost/fastapi-learning-lab-runner:dev apps/runner",
+    "build:runner:local-ca": "podman build --build-arg PYTHON_BASE_IMAGE=localhost/python-ca:3.12.13-slim-trixie --tag localhost/fastapi-learning-lab-runner:dev apps/runner",
+    "test:web": "pnpm --filter @fastapi-lab/web test",
+    "typecheck:web": "pnpm --filter @fastapi-lab/web typecheck"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
