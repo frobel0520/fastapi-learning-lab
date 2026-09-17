@@ -1,9 +1,13 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import allowed_origins
 from app.models.content import Course, CourseList, CourseSummary, CoverageManifest, Lesson
+from app.models.execution import ExecutionRequest, ExecutionResult
+from app.runners.base import Runner
 from app.services.content import get_course, get_coverage, get_lesson
+from app.services.runner import get_runner
+from app.services.submission import normalize_execution_request
 
 
 app = FastAPI(
@@ -15,7 +19,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins(),
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )
 
@@ -61,3 +65,17 @@ async def read_lesson(lesson_id: str) -> Lesson:
 @app.get("/api/v1/coverage", response_model=CoverageManifest, tags=["courses"])
 async def read_coverage() -> CoverageManifest:
     return get_coverage()
+
+
+@app.post(
+    "/api/v1/executions",
+    response_model=ExecutionResult,
+    tags=["executions"],
+)
+async def execute_code(
+    payload: ExecutionRequest,
+    runner: Runner = Depends(get_runner),
+) -> ExecutionResult:
+    if get_lesson(payload.lesson_id) is None:
+        raise HTTPException(status_code=404, detail="Lesson not found")
+    return await runner.run(normalize_execution_request(payload))
