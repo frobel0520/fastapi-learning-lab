@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "test": "node --test --experimental-strip-types tests/api-config.test.ts tests/editor-state.test.ts tests/workspace-state.test.ts tests/lab-layout.test.ts",
+    "test": "node --test --experimental-strip-types tests/api-config.test.ts tests/editor-state.test.ts tests/workspace-state.test.ts tests/lab-layout.test.ts tests/pyodide-core.test.ts",
     "typecheck": "tsc -b --pretty false",
+    "verify:browser-runner": "node --experimental-wasm-jspi --experimental-strip-types scripts/verify-browser-runner.ts",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -18,6 +19,7 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.1",
+    "pyodide": "314.0.7",
     "typescript": "7.0.2",
     "vite": "8.3.0"
   }

@@ -19,7 +19,7 @@ class PackageReleaseTest(unittest.TestCase):
                 self.assertIn("apps/api/.env.example", names)
                 self.assertIn("PACKAGE-MANIFEST.json", names)
                 self.assertEqual(names, sorted(names[:-1]) + ["PACKAGE-MANIFEST.json"])
-                forbidden = ("node_modules/", ".venv/", "dist/", "graphify-out/", "artifacts/", "release/")
+                forbidden = ("node_modules/", ".venv/", "dist/", "generated/", "graphify-out/", "artifacts/", "release/")
                 self.assertFalse(any(any(part in name for part in forbidden) for name in names))
                 manifest = json.loads(archive.read("PACKAGE-MANIFEST.json"))
                 self.assertEqual(len(manifest["files"]), len(names) - 1)
