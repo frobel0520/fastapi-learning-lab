@@ -17,7 +17,7 @@ def test_course_catalog_and_lesson_lookup() -> None:
     assert catalog.status_code == 200
     item = catalog.json()["items"][0]
     assert item["module_count"] == 14
-    assert item["ready_lesson_count"] == 35
+    assert item["ready_lesson_count"] == 59
 
     lesson = client.get("/api/v1/lessons/first-fastapi-app")
     assert lesson.status_code == 200
@@ -45,7 +45,7 @@ def test_course_and_coverage_contracts() -> None:
     coverage = client.get("/api/v1/coverage")
     assert coverage.status_code == 200
     entries = coverage.json()["entries"]
-    assert len(entries) == 33
+    assert len(entries) == 49
     assert all(entry["source_url"].startswith("https://fastapi.tiangolo.com/") for entry in entries)
     coverage_ids = [entry["id"] for entry in entries]
     assert len(coverage_ids) == len(set(coverage_ids))
@@ -56,7 +56,49 @@ def test_course_and_coverage_contracts() -> None:
     module_by_lesson = {lesson["id"]: lesson["module_id"] for lesson in course.json()["lessons"]}
     assert all(entry["module_id"] == module_by_lesson[entry["lesson_id"]] for entry in linked_entries)
     ready_modules = {lesson["module_id"] for lesson in course.json()["lessons"] if lesson["status"] == "ready"}
-    assert {"m02-request-data", "m03-modeling-validation", "m04-http-inputs", "m05-responses-errors"} <= ready_modules
+    assert {"m02-request-data", "m03-modeling-validation", "m04-http-inputs", "m05-responses-errors", "m06-dependencies", "m07-security", "m08-data"} <= ready_modules
+    dependency_lesson_ids = {
+        "dependency-basics",
+        "class-dependencies",
+        "callable-dependencies",
+        "sub-dependencies",
+        "dependency-caching",
+        "decorator-dependencies",
+        "router-dependencies",
+        "global-dependencies",
+        "yield-dependencies",
+    }
+    assert dependency_lesson_ids <= set(lesson_ids)
+    dependency_coverage = [entry for entry in entries if entry["module_id"] == "m06-dependencies"]
+    assert dependency_coverage
+    assert all(entry["status"] == "ready" for entry in dependency_coverage)
+    security_lesson_ids = {
+        "oauth2-password-bearer",
+        "current-user-dependency",
+        "oauth2-password-form",
+        "password-hashing",
+        "jwt-authentication",
+        "active-user",
+        "oauth2-scopes",
+        "legacy-authentication-403",
+    }
+    assert security_lesson_ids <= set(lesson_ids)
+    security_coverage = [entry for entry in entries if entry["module_id"] == "m07-security"]
+    assert security_coverage
+    assert all(entry["status"] == "ready" for entry in security_coverage)
+    data_lesson_ids = {
+        "sqlmodel-table",
+        "sqlite-engine-tables",
+        "session-dependency",
+        "create-rows",
+        "read-pagination",
+        "data-model-separation",
+        "update-delete",
+    }
+    assert data_lesson_ids <= set(lesson_ids)
+    data_coverage = [entry for entry in entries if entry["module_id"] == "m08-data"]
+    assert data_coverage
+    assert all(entry["status"] == "ready" for entry in data_coverage)
     modeling_lesson_ids = {"dataclass-models", "pydantic-v2-migration"}
     assert modeling_lesson_ids <= set(lesson_ids)
     modeling_closure = [entry for entry in entries if entry["lesson_id"] in modeling_lesson_ids]
@@ -64,8 +106,12 @@ def test_course_and_coverage_contracts() -> None:
     assert all(entry["status"] == "ready" and entry["lesson_id"] for entry in entries)
     assert {entry["id"] for entry in entries if entry["source_url"] in {
         "https://fastapi.tiangolo.com/editor-support/",
+        "https://fastapi.tiangolo.com/advanced/security/",
+        "https://fastapi.tiangolo.com/how-to/authentication-error-status-code/",
     }} == {
         "editor-support",
+        "advanced-security-overview",
+        "recipe-authentication-403",
     }
 
 

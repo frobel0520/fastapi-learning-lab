@@ -1,0 +1,96 @@
+{
+  "module":{"id":"m06-dependencies","order":6,"title":"依賴注入","summary":"用 dependency system 組合驗證、資源與共用行為。","lessons":[
+    {"id":"dependency-basics","title":"Depends 與依賴注入","duration_minutes":20,"status":"ready"},
+    {"id":"class-dependencies","title":"Classes as Dependencies","duration_minutes":18,"status":"ready"},
+    {"id":"callable-dependencies","title":"Parameterized Callable Dependencies","duration_minutes":18,"status":"ready"},
+    {"id":"sub-dependencies","title":"Sub-dependencies","duration_minutes":20,"status":"ready"},
+    {"id":"dependency-caching","title":"Request-scoped Dependency Cache","duration_minutes":16,"status":"ready"},
+    {"id":"decorator-dependencies","title":"Dependencies in Decorators","duration_minutes":18,"status":"ready"},
+    {"id":"router-dependencies","title":"APIRouter Dependencies","duration_minutes":18,"status":"ready"},
+    {"id":"global-dependencies","title":"Global Dependencies","duration_minutes":16,"status":"ready"},
+    {"id":"yield-dependencies","title":"yield、Cleanup 與 Scope","duration_minutes":24,"status":"ready"}
+  ]},
+  "lessons":[
+    {
+      "id":"dependency-basics","module_id":"m06-dependencies","order":1,"title":"Depends 與依賴注入","duration_minutes":20,"status":"ready",
+      "summary":"Path operation 宣告需要什麼，FastAPI 便解析 dependency 的參數、呼叫它並注入結果。",
+      "objectives":["用 Annotated 與 Depends 宣告依賴","重用 query 解析邏輯","理解依賴也會進入 OpenAPI"],
+      "concepts":["把 callable 傳給 Depends，不要自己加括號呼叫；FastAPI 會負責執行。","dependency 的參數和 path operation 一樣可來自 query、header、cookie 或其他 dependencies。","Annotated 可保存值的型別與 Depends metadata，讓型別契約更清楚。"],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\n\napp = FastAPI()\n\n# 練習：建立 common_parameters 並注入 GET /items","solution":"from typing import Annotated\nfrom fastapi import Depends, FastAPI\n\napp = FastAPI()\n\ndef common_parameters(q: str | None = None, skip: int = 0, limit: int = 10) -> dict[str, object]:\n    return {\"q\": q, \"skip\": skip, \"limit\": limit}\n\n@app.get(\"/items\")\nasync def read_items(commons: Annotated[dict[str, object], Depends(common_parameters)]) -> dict[str, object]:\n    return commons","walkthrough":["common_parameters 集中 query 契約。","Depends 接收函式本身。","FastAPI 解析後把 dictionary 注入 commons。"]},
+      "exercise":{"title":"抽出共用查詢參數","prompt":"讓 GET /items 透過 dependency 回傳 q、skip、limit。","requirements":["使用 Annotated 與 Depends","limit 預設為 10","dependency 回傳三個欄位"],"hints":["傳入 Depends(common_parameters)，不要呼叫 common_parameters()"],"checks":["query 參數被解析成正確型別","未提供參數時套用預設值"]},
+      "source_url":"https://fastapi.tiangolo.com/tutorial/dependencies/"
+    },
+    {
+      "id":"class-dependencies","module_id":"m06-dependencies","order":2,"title":"Classes as Dependencies","duration_minutes":18,"status":"ready",
+      "summary":"Class 本身是 callable；FastAPI 可解析 constructor 參數並注入建立完成的 instance。",
+      "objectives":["把 class 當作 dependency","以 instance attributes 使用解析結果","使用 Depends() class shortcut"],
+      "concepts":["FastAPI 看到 class 時會分析 __init__ 的參數。","注入值是 class instance，不必先建立全域物件。","當 Annotated 的型別已指出 class，可用 Depends() shortcut 避免重複名稱。"],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\n\napp = FastAPI()\n\n# 練習：建立 CommonQueryParams class","solution":"from typing import Annotated\nfrom fastapi import Depends, FastAPI\n\nclass CommonQueryParams:\n    def __init__(self, q: str | None = None, skip: int = 0, limit: int = 10):\n        self.q = q\n        self.skip = skip\n        self.limit = limit\n\napp = FastAPI()\n\n@app.get(\"/items\")\nasync def read_items(commons: Annotated[CommonQueryParams, Depends()]) -> dict[str, object]:\n    return {\"q\": commons.q, \"skip\": commons.skip, \"limit\": commons.limit}","walkthrough":["constructor 定義 request 參數。","Depends() 從 Annotated 型別推得 CommonQueryParams。","endpoint 使用已解析的 instance。"]},
+      "exercise":{"title":"建立查詢參數物件","prompt":"用 class 封裝 q、skip、limit，再注入 endpoint。","requirements":["建立 CommonQueryParams","使用 Annotated 與 Depends()","從 instance 回傳欄位"],"hints":["class constructor 的參數會由 FastAPI 解析"],"checks":["query 值進入 instance attributes","數值型別驗證有效"]},
+      "source_url":"https://fastapi.tiangolo.com/tutorial/dependencies/classes-as-dependencies/"
+    },
+    {
+      "id":"callable-dependencies","module_id":"m06-dependencies","order":3,"title":"Parameterized Callable Dependencies","duration_minutes":18,"status":"ready",
+      "summary":"具有 __call__ 的 instance 可攜帶設定，讓同一種 dependency 行為以不同參數重用。",
+      "objectives":["建立 callable instance","把設定與 request 參數分開","注入布林檢查結果"],
+      "concepts":["__init__ 在應用程式組裝時接收固定設定；__call__ 在每個 request 執行。","Depends 接收的是 configured instance，而不是 class。","這適合參數化驗證器，但狀態仍應避免跨 request 污染。"],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\n\napp = FastAPI()\n\n# 練習：建立 Contains checker","solution":"from typing import Annotated\nfrom fastapi import Depends, FastAPI\n\nclass Contains:\n    def __init__(self, required: str):\n        self.required = required\n\n    def __call__(self, q: str = \"\") -> bool:\n        return self.required.lower() in q.lower()\n\ncontains_fastapi = Contains(\"fastapi\")\napp = FastAPI()\n\n@app.get(\"/check\")\nasync def check_query(matches: Annotated[bool, Depends(contains_fastapi)]) -> dict[str, bool]:\n    return {\"matches\": matches}","walkthrough":["instance 保存 required 設定。","每次 request 由 __call__ 接收 q。","endpoint 只需要使用布林結果。"]},
+      "exercise":{"title":"建立可設定的查詢檢查器","prompt":"檢查 q 是否包含 fastapi，且不區分大小寫。","requirements":["實作 __call__","建立 Contains(\"fastapi\") instance","透過 Depends 注入"],"hints":["Depends 內放 instance 名稱"],"checks":["fastapi query 得到 true","其他 query 得到 false"]},
+      "source_url":"https://fastapi.tiangolo.com/advanced/advanced-dependencies/"
+    },
+    {
+      "id":"sub-dependencies","module_id":"m06-dependencies","order":4,"title":"Sub-dependencies","duration_minutes":20,"status":"ready",
+      "summary":"Dependency 可以再依賴其他 dependency，FastAPI 會建立並解析完整 dependency graph。",
+      "objectives":["組合兩層 dependency","在 query 與 cookie 間建立優先順序","理解 dependency graph"],
+      "concepts":["sub-dependency 的深度沒有固定限制，但每層應保持單一責任。","上層 dependency 接收下層解析完成的值。","相同 dependency 在同一 request 預設只執行一次。"],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\n\napp = FastAPI()\n\n# 練習：query 優先，否則使用 last_query cookie","solution":"from typing import Annotated\nfrom fastapi import Cookie, Depends, FastAPI\n\napp = FastAPI()\n\ndef query_extractor(q: str | None = None) -> str | None:\n    return q\n\ndef query_or_cookie(\n    query: Annotated[str | None, Depends(query_extractor)],\n    last_query: Annotated[str | None, Cookie()] = None,\n) -> str | None:\n    return query or last_query\n\n@app.get(\"/search\")\nasync def search(value: Annotated[str | None, Depends(query_or_cookie)]) -> dict[str, str | None]:\n    return {\"value\": value}","walkthrough":["query_extractor 是 graph 底層。","query_or_cookie 組合 query 與 cookie。","path operation 只依賴最終值。"]},
+      "exercise":{"title":"組合 query 與 cookie","prompt":"q 存在時優先使用，否則回退到 last_query cookie。","requirements":["建立兩層 dependencies","使用 Cookie()","q 優先於 cookie"],"hints":["上層 dependency 可把下層結果當作一般參數"],"checks":["query 覆蓋 cookie","缺少 query 時使用 cookie"]},
+      "source_url":"https://fastapi.tiangolo.com/tutorial/dependencies/sub-dependencies/"
+    },
+    {
+      "id":"dependency-caching","module_id":"m06-dependencies","order":5,"title":"Request-scoped Dependency Cache","duration_minutes":16,"status":"ready",
+      "summary":"FastAPI 預設在單一 request 中重用 dependency 結果；use_cache=False 才會要求再次執行。",
+      "objectives":["觀察同 request cache","使用 use_cache=False","避免把 request cache 誤認為全域 cache"],
+      "concepts":["cache key 屬於目前 request，下一個 request 仍會重新計算。","共享 sub-dependency 預設只呼叫一次，避免重複查詢資源。","use_cache=False 適合確實需要新值的少數場景。"],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\n\napp = FastAPI()\n\n# 練習：比較預設 cache 與 use_cache=False","solution":"from typing import Annotated\nfrom fastapi import Depends, FastAPI\n\ncalls = 0\n\ndef next_value() -> int:\n    global calls\n    calls += 1\n    return calls\n\napp = FastAPI()\n\n@app.get(\"/cached\")\nasync def cached(\n    first: Annotated[int, Depends(next_value)],\n    second: Annotated[int, Depends(next_value)],\n) -> dict[str, object]:\n    return {\"same\": first == second, \"gap\": second - first}\n\n@app.get(\"/fresh\")\nasync def fresh(\n    first: Annotated[int, Depends(next_value)],\n    second: Annotated[int, Depends(next_value, use_cache=False)],\n) -> dict[str, object]:\n    return {\"same\": first == second, \"gap\": second - first}","walkthrough":["cached endpoint 兩次宣告共用同一結果。","fresh 的第二次注入停用 cache。","counter 僅用於觀察行為，不是實務共享狀態建議。"]},
+      "exercise":{"title":"比較 cached 與 fresh dependency","prompt":"讓 /cached 得到同值，而 /fresh 第二個值重新計算。","requirements":["同一 dependency 宣告兩次","在 /fresh 使用 use_cache=False","回傳 same 與 gap"],"hints":["use_cache 是 Depends 的 keyword argument"],"checks":["cached 的 same=true、gap=0","fresh 的 same=false、gap=1"]},
+      "source_url":"https://fastapi.tiangolo.com/tutorial/dependencies/sub-dependencies/"
+    },
+    {
+      "id":"decorator-dependencies","module_id":"m06-dependencies","order":6,"title":"Dependencies in Decorators","duration_minutes":18,"status":"ready",
+      "summary":"只需要執行驗證、不需要注入回傳值時，可把 Depends 放在 path operation decorator。",
+      "objectives":["使用 dependencies list","以 header dependency 阻擋請求","避免未使用的 endpoint 參數"],
+      "concepts":["decorator dependency 仍完整解析、執行並可 raise HTTPException。","它的回傳值不會傳給 path operation。","這種寫法常用於驗證或 side effect；安全章節會再使用 Security utilities。"],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\n\napp = FastAPI()\n\n# 練習：以 X-Token 保護 /items","solution":"from typing import Annotated\nfrom fastapi import Depends, FastAPI, Header, HTTPException\n\napp = FastAPI()\n\ndef verify_token(x_token: Annotated[str, Header()]) -> None:\n    if x_token != \"lab-secret\":\n        raise HTTPException(status_code=400, detail=\"Invalid token\")\n\n@app.get(\"/items\", dependencies=[Depends(verify_token)])\nasync def read_items() -> dict[str, bool]:\n    return {\"allowed\": True}","walkthrough":["Header() 將 x_token 對應 X-Token。","dependency 先於 endpoint 執行。","驗證通過後 endpoint 不需接收未使用參數。"]},
+      "exercise":{"title":"加入 decorator 驗證","prompt":"只有 X-Token: lab-secret 可以讀取 /items。","requirements":["dependencies=[Depends(...)]","錯誤 token raise HTTPException","endpoint 不增加 token 參數"],"hints":["Header 會把底線轉成連字號"],"checks":["正確 header 回傳 200","缺少或錯誤 header 被拒絕"]},
+      "source_url":"https://fastapi.tiangolo.com/tutorial/dependencies/dependencies-in-path-operation-decorators/"
+    },
+    {
+      "id":"router-dependencies","module_id":"m06-dependencies","order":7,"title":"APIRouter Dependencies","duration_minutes":18,"status":"ready",
+      "summary":"APIRouter dependencies 把同一規則套用到一組 routes，避免每個 decorator 重複宣告。",
+      "objectives":["建立帶 dependencies 的 APIRouter","將 router include 進 app","驗證群組層級規則"],
+      "concepts":["router dependency 會套用到該 router 的所有 path operations。","router dependency 先於 decorator 與 parameter dependencies 執行。","prefix、tags 與 dependencies 共同描述一組 routes 的邊界。"],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\n\napp = FastAPI()\n\n# 練習：建立受 X-Key 保護的 /admin router","solution":"from typing import Annotated\nfrom fastapi import APIRouter, Depends, FastAPI, Header, HTTPException\n\ndef verify_key(x_key: Annotated[str, Header()]) -> None:\n    if x_key != \"admin-key\":\n        raise HTTPException(status_code=403, detail=\"Forbidden\")\n\nrouter = APIRouter(prefix=\"/admin\", dependencies=[Depends(verify_key)])\n\n@router.get(\"/status\")\nasync def admin_status() -> dict[str, bool]:\n    return {\"admin\": True}\n\napp = FastAPI()\napp.include_router(router)","walkthrough":["router constructor 宣告共同 dependency。","route 不需重複 Depends。","include_router 將完整群組加入 app。"]},
+      "exercise":{"title":"保護一組管理 routes","prompt":"建立 /admin/status，要求 X-Key: admin-key。","requirements":["使用 APIRouter dependencies","prefix 為 /admin","include router"],"hints":["dependency 放在 APIRouter(...)"],"checks":["正確 key 回傳 admin=true","缺少 key 回傳錯誤"]},
+      "source_url":"https://fastapi.tiangolo.com/tutorial/bigger-applications/"
+    },
+    {
+      "id":"global-dependencies","module_id":"m06-dependencies","order":8,"title":"Global Dependencies","duration_minutes":16,"status":"ready",
+      "summary":"FastAPI constructor 的 dependencies 會套用到應用程式內所有 path operations。",
+      "objectives":["宣告 application-wide dependency","理解全域規則的影響範圍","避免在公開 route 誤套全域驗證"],
+      "concepts":["global dependency 與一般 dependency 使用同一套解析規則。","它適合真正的全應用政策；若只有部分 routes 需要，應使用 router scope。","回傳值不會自動注入每個 endpoint。"],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\n\n# 練習：讓所有 routes 要求 X-Key\napp = FastAPI()","solution":"from typing import Annotated\nfrom fastapi import Depends, FastAPI, Header, HTTPException\n\ndef verify_key(x_key: Annotated[str, Header()]) -> None:\n    if x_key != \"global-key\":\n        raise HTTPException(status_code=403, detail=\"Forbidden\")\n\napp = FastAPI(dependencies=[Depends(verify_key)])\n\n@app.get(\"/items\")\nasync def read_items() -> dict[str, bool]:\n    return {\"allowed\": True}\n\n@app.get(\"/users\")\nasync def read_users() -> dict[str, bool]:\n    return {\"allowed\": True}","walkthrough":["dependency 在 app 組裝時宣告。","兩個 endpoints 自動套用相同驗證。","endpoint signatures 保持只含業務參數。"]},
+      "exercise":{"title":"建立全域 header 規則","prompt":"讓 /items 與 /users 都要求 X-Key: global-key。","requirements":["FastAPI(dependencies=[...])","兩條 routes 共用規則","錯誤時回傳 403"],"hints":["不要只放在單一路由 decorator"],"checks":["兩條 routes 都受保護","正確 key 都可通過"]},
+      "source_url":"https://fastapi.tiangolo.com/tutorial/dependencies/global-dependencies/"
+    },
+    {
+      "id":"yield-dependencies","module_id":"m06-dependencies","order":9,"title":"yield、Cleanup 與 Scope","duration_minutes":24,"status":"ready",
+      "summary":"yield 前建立資源、yield 值被注入、finally 負責可靠清理；scope 決定 exit code 的時間點。",
+      "objectives":["建立 yield dependency","以 finally 保證 cleanup","分辨 request 與 function scope"],
+      "concepts":["每個 dependency 應只 yield 一次；FastAPI 會以 context manager 管理它。","未指定時 yield dependency 使用 request scope，在 response 送出後執行 exit code。","FastAPI 0.121.0 起可用 scope=\"function\"，讓 exit code 在 path operation 結束、response 送出前執行。"],
+      "code":{"filename":"main.py","starter":"from fastapi import FastAPI\n\napp = FastAPI()\nevents = []\n\n# 練習：建立會記錄 open/close 的 resource dependency","solution":"from typing import Annotated\nfrom fastapi import Depends, FastAPI\n\nevents: list[str] = []\n\ndef resource():\n    events.append(\"open\")\n    try:\n        yield \"db-session\"\n    finally:\n        events.append(\"close\")\n\napp = FastAPI()\n\n@app.get(\"/resource\")\nasync def use_resource(value: Annotated[str, Depends(resource, scope=\"function\")]) -> dict[str, object]:\n    return {\"value\": value, \"events_during\": list(events)}\n\n@app.get(\"/events\")\nasync def read_events() -> dict[str, list[str]]:\n    return {\"events\": events}","walkthrough":["yield 前把資源標記為 open。","yield 的字串注入 endpoint。","function scope 讓 finally 在 path operation 完成後、response 傳送前執行。"]},
+      "exercise":{"title":"保證資源被關閉","prompt":"注入 db-session，並在請求結束時記錄 close。","requirements":["使用 try/finally 與單一 yield","使用 scope=\"function\"","提供 /events 觀察 cleanup"],"hints":["finally 即使 endpoint 發生例外也會執行"],"checks":["endpoint 收到 db-session","執行期間只有 open","完成後 events 為 open、close"]},
+      "source_url":"https://fastapi.tiangolo.com/tutorial/dependencies/dependencies-with-yield/"
+    }
+  ]
+}

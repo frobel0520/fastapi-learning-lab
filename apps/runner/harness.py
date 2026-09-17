@@ -8,7 +8,9 @@ import traceback
 from pathlib import Path
 from typing import Callable
 
+import jwt
 from fastapi import FastAPI
+from fastapi.security import HTTPBearer
 from fastapi.testclient import TestClient
 
 
@@ -121,6 +123,91 @@ HTTP_CASES: dict[str, list[dict[str, object]]] = {
         {"name": "只更新提供欄位", "method": "PATCH", "path": "/items/1", "json_body": {"price": 5}, "status": 200, "json": {"name": "Pen", "price": 5.0}},
         {"name": "明確 null", "method": "PATCH", "path": "/items/1", "json_body": {"name": None}, "status": 200, "json": {"name": None, "price": 2.0}},
     ],
+    "dependency-basics": [
+        {"name": "注入共用參數", "path": "/items?q=api&skip=2&limit=3", "status": 200, "json": {"q": "api", "skip": 2, "limit": 3}},
+        {"name": "依賴參數驗證", "path": "/items?skip=bad", "status": 422},
+    ],
+    "class-dependencies": [
+        {"name": "Class dependency", "path": "/items?q=api&skip=1&limit=4", "status": 200, "json": {"q": "api", "skip": 1, "limit": 4}},
+        {"name": "Constructor 型別驗證", "path": "/items?limit=bad", "status": 422},
+    ],
+    "callable-dependencies": [
+        {"name": "Callable 符合", "path": "/check?q=Learn%20FastAPI", "status": 200, "json": {"matches": True}},
+        {"name": "Callable 不符合", "path": "/check?q=Starlette", "status": 200, "json": {"matches": False}},
+    ],
+    "sub-dependencies": [
+        {"name": "Query 優先", "path": "/search?q=request", "cookies": {"last_query": "cookie"}, "status": 200, "json": {"value": "request"}},
+        {"name": "Cookie fallback", "path": "/search", "cookies": {"last_query": "cookie"}, "status": 200, "json": {"value": "cookie"}},
+    ],
+    "dependency-caching": [
+        {"name": "Request cache", "path": "/cached", "status": 200, "json": {"same": True, "gap": 0}},
+        {"name": "停用 cache", "path": "/fresh", "status": 200, "json": {"same": False, "gap": 1}},
+    ],
+    "decorator-dependencies": [
+        {"name": "Decorator dependency 通過", "path": "/items", "headers": {"x-token": "lab-secret"}, "status": 200, "json": {"allowed": True}},
+        {"name": "Decorator dependency 拒絕", "path": "/items", "headers": {"x-token": "wrong"}, "status": 400, "json": {"detail": "Invalid token"}},
+    ],
+    "router-dependencies": [
+        {"name": "Router dependency 通過", "path": "/admin/status", "headers": {"x-key": "admin-key"}, "status": 200, "json": {"admin": True}},
+        {"name": "Router dependency 拒絕", "path": "/admin/status", "headers": {"x-key": "wrong"}, "status": 403, "json": {"detail": "Forbidden"}},
+    ],
+    "global-dependencies": [
+        {"name": "Global dependency 套用 items", "path": "/items", "headers": {"x-key": "global-key"}, "status": 200, "json": {"allowed": True}},
+        {"name": "Global dependency 套用 users", "path": "/users", "headers": {"x-key": "wrong"}, "status": 403, "json": {"detail": "Forbidden"}},
+    ],
+    "yield-dependencies": [
+        {"name": "注入 yield 值", "path": "/resource", "status": 200, "json": {"value": "db-session", "events_during": ["open"]}},
+        {"name": "執行 cleanup", "path": "/events", "status": 200, "json": {"events": ["open", "close"]}},
+    ],
+    "oauth2-password-bearer": [
+        {"name": "解析 Bearer token", "path": "/token-info", "headers": {"authorization": "Bearer abc"}, "status": 200, "json": {"token": "abc"}},
+        {"name": "缺少 Bearer token", "path": "/token-info", "status": 401},
+    ],
+    "current-user-dependency": [
+        {"name": "取得 current user", "path": "/users/me", "headers": {"authorization": "Bearer alice"}, "status": 200, "json": {"username": "alice", "full_name": "Alice Chen"}},
+        {"name": "拒絕未知 token", "path": "/users/me", "headers": {"authorization": "Bearer unknown"}, "status": 401, "json": {"detail": "Invalid credentials"}},
+    ],
+    "oauth2-password-form": [
+        {"name": "Password form 登入", "method": "POST", "path": "/token", "data": {"username": "alice", "password": "swordfish"}, "status": 200, "json": {"access_token": "alice", "token_type": "bearer"}},
+        {"name": "錯誤密碼", "method": "POST", "path": "/token", "data": {"username": "alice", "password": "wrong"}, "status": 401, "json": {"detail": "Incorrect username or password"}},
+    ],
+    "password-hashing": [
+        {"name": "Argon2 驗證成功", "method": "POST", "path": "/verify", "data": {"username": "alice", "password": "swordfish"}, "status": 200, "json": {"valid": True}},
+        {"name": "Argon2 驗證失敗", "method": "POST", "path": "/verify", "data": {"username": "alice", "password": "wrong"}, "status": 200, "json": {"valid": False}},
+    ],
+    "active-user": [
+        {"name": "Active user 通過", "path": "/users/me", "headers": {"authorization": "Bearer alice"}, "status": 200, "json": {"username": "alice", "disabled": False}},
+        {"name": "Disabled user 拒絕", "path": "/users/me", "headers": {"authorization": "Bearer bob"}, "status": 400, "json": {"detail": "Inactive user"}},
+    ],
+    "legacy-authentication-403": [
+        {"name": "舊版未驗證狀態", "path": "/me", "status": 403, "json": {"detail": "Not authenticated"}},
+        {"name": "Bearer token 仍可通過", "path": "/me", "headers": {"authorization": "Bearer abc"}, "status": 200, "json": {"message": "You are authenticated", "token": "abc"}},
+    ],
+    "sqlmodel-table": [
+        {"name": "Table model 驗證", "method": "POST", "path": "/heroes", "json_body": {"name": "Ada", "secret_name": "Code"}, "status": 200, "json": {"id": None, "name": "Ada", "secret_name": "Code"}},
+    ],
+    "sqlite-engine-tables": [
+        {"name": "Metadata 建立資料表", "path": "/db-info", "status": 200, "json": {"tables": ["hero"]}},
+    ],
+    "session-dependency": [
+        {"name": "Request-scoped Session", "path": "/session-check", "status": 200, "json": {"same_session": True, "active": True}},
+    ],
+    "create-rows": [
+        {"name": "第一筆自動 id", "method": "POST", "path": "/heroes", "json_body": {"name": "Ada"}, "status": 201, "json": {"id": 1, "name": "Ada"}},
+        {"name": "第二筆自動 id", "method": "POST", "path": "/heroes", "json_body": {"name": "Grace"}, "status": 201, "json": {"id": 2, "name": "Grace"}},
+    ],
+    "read-pagination": [
+        {"name": "Offset 與 limit", "path": "/heroes?offset=1&limit=1", "status": 200, "json": [{"id": 2, "name": "Lin"}]},
+        {"name": "限制最大筆數", "path": "/heroes?limit=101", "status": 422},
+    ],
+    "data-model-separation": [
+        {"name": "Public model 過濾 secret", "method": "POST", "path": "/heroes", "json_body": {"name": "Ada", "age": 36, "secret_name": "Code"}, "status": 201, "json": {"name": "Ada", "age": 36, "id": 1}},
+    ],
+    "update-delete": [
+        {"name": "Partial update 保留 age", "method": "PATCH", "path": "/heroes/1", "json_body": {"name": "Ada Lovelace"}, "status": 200, "json": {"id": 1, "name": "Ada Lovelace", "age": 36}},
+        {"name": "刪除 row", "method": "DELETE", "path": "/heroes/1", "status": 200, "json": {"ok": True}},
+        {"name": "刪除後為 404", "path": "/heroes/1", "status": 404, "json": {"detail": "Hero not found"}},
+    ],
 }
 
 
@@ -174,7 +261,57 @@ def evaluate_http_cases(lesson_id: str, app: FastAPI) -> list[dict[str, object]]
     if lesson_id == "path-operation-configuration":
         operation = schema["paths"]["/legacy"]["get"]
         results.append(check("Operation metadata", lambda: operation.get("deprecated") is True and operation.get("summary") == "舊版入口" and "legacy" in operation.get("tags", []), "OpenAPI metadata 不完整"))
+    if lesson_id == "oauth2-password-bearer":
+        scheme = schema.get("components", {}).get("securitySchemes", {}).get("OAuth2PasswordBearer", {})
+        token_url = scheme.get("flows", {}).get("password", {}).get("tokenUrl")
+        results.append(check("OpenAPI OAuth2 flow", lambda: token_url == "token", "OpenAPI 必須宣告相對 tokenUrl"))
+    if lesson_id == "data-model-separation":
+        response_schema = schema["paths"]["/heroes"]["post"]["responses"]["201"]["content"]["application/json"]["schema"]
+        results.append(check("OpenAPI public model", lambda: response_schema.get("$ref", "").endswith("/HeroPublic"), "Response schema 必須使用 HeroPublic"))
     return results
+
+
+def evaluate_jwt_flow(app: FastAPI) -> list[dict[str, object]]:
+    client = TestClient(app)
+    login = client.post("/token", data={"username": "alice", "password": "swordfish"})
+    body = login.json() if login.status_code == 200 else {}
+    token = body.get("access_token", "")
+    me = client.get("/users/me", headers={"authorization": f"Bearer {token}"})
+    tampered = client.get("/users/me", headers={"authorization": f"Bearer {token}x"})
+    try:
+        payload = jwt.decode(token, options={"verify_signature": False})
+    except Exception:
+        payload = {}
+    return [
+        check("JWT token response", lambda: login.status_code == 200 and body.get("token_type") == "bearer" and bool(token), "登入必須回傳 bearer access token"),
+        check("JWT claims", lambda: payload.get("sub") == "alice" and isinstance(payload.get("exp"), int), "JWT 必須包含 sub 與 exp"),
+        check("JWT current user", lambda: me.status_code == 200 and me.json() == {"username": "alice"}, "合法 JWT 必須解析為 alice"),
+        check("JWT tamper detection", lambda: tampered.status_code == 401, "竄改 JWT 必須回傳 401"),
+    ]
+
+
+def evaluate_scope_flow(app: FastAPI) -> list[dict[str, object]]:
+    client = TestClient(app)
+    alice_login = client.post("/token", data={"username": "alice", "password": "secret", "scope": "profile:read items:read"})
+    alice_token = alice_login.json().get("access_token", "") if alice_login.status_code == 200 else ""
+    alice_headers = {"authorization": f"Bearer {alice_token}"}
+    alice_profile = client.get("/profile", headers=alice_headers)
+    alice_items = client.get("/items", headers=alice_headers)
+
+    bob_login = client.post("/token", data={"username": "bob", "password": "secret", "scope": "profile:read items:read"})
+    bob_token = bob_login.json().get("access_token", "") if bob_login.status_code == 200 else ""
+    bob_headers = {"authorization": f"Bearer {bob_token}"}
+    bob_profile = client.get("/profile", headers=bob_headers)
+    bob_items = client.get("/items", headers=bob_headers)
+
+    schema = app.openapi()
+    scopes = schema.get("components", {}).get("securitySchemes", {}).get("OAuth2PasswordBearer", {}).get("flows", {}).get("password", {}).get("scopes", {})
+    return [
+        check("Alice scopes", lambda: alice_profile.status_code == 200 and alice_items.status_code == 200, "alice 的兩個 scopes 都必須通過"),
+        check("Server limits scopes", lambda: bob_profile.status_code == 200 and bob_items.status_code == 403, "bob 不得取得未授權的 items:read"),
+        check("Scope error detail", lambda: bob_items.json() == {"detail": "Not enough permissions"}, "缺少 scope 必須回傳固定錯誤"),
+        check("OpenAPI scopes", lambda: set(scopes) == {"profile:read", "items:read"}, "OpenAPI 必須列出兩種 scopes"),
+    ]
 
 
 def evaluate(lesson_id: str, namespace: dict[str, object]) -> list[dict[str, object]]:
@@ -184,8 +321,19 @@ def evaluate(lesson_id: str, namespace: dict[str, object]) -> list[dict[str, obj
             check("Root filesystem read-only", lambda: namespace.get("root_read_only") is True, "root filesystem 不得可寫"),
             check("Non-root user", lambda: namespace.get("effective_uid") not in {None, 0}, "程式不得以 root 執行"),
         ]
+    if lesson_id == "jwt-authentication":
+        return evaluate_jwt_flow(app_from(namespace))
+    if lesson_id == "oauth2-scopes":
+        return evaluate_scope_flow(app_from(namespace))
     if lesson_id in HTTP_CASES:
         results = evaluate_http_cases(lesson_id, app_from(namespace))
+        if lesson_id == "sqlmodel-table":
+            hero = namespace.get("Hero")
+            results.append(check("Primary key metadata", lambda: hero is not None and "id" in hero.__table__.primary_key.columns, "Hero.id 必須是 primary key"))
+            results.append(check("Index metadata", lambda: hero is not None and hero.__table__.columns["name"].index is True, "Hero.name 必須設定 index=True"))
+        if lesson_id == "session-dependency":
+            get_session = namespace.get("get_session")
+            results.append(check("Yield dependency", lambda: inspect.isgeneratorfunction(get_session), "get_session 必須 yield Session"))
         if lesson_id == "dataclass-models":
             item_type = namespace.get("Item")
             catalog_type = namespace.get("Catalog")
@@ -211,6 +359,18 @@ def evaluate(lesson_id: str, namespace: dict[str, object]) -> list[dict[str, obj
                 "Forbid extra fields",
                 lambda: item_type is not None and item_type.model_config.get("extra") == "forbid",
                 "model_config 必須設定 extra='forbid'",
+            ))
+        if lesson_id == "legacy-authentication-403":
+            bearer_type = namespace.get("HTTPBearer403")
+            results.append(check(
+                "HTTPBearer subclass",
+                lambda: isinstance(bearer_type, type) and issubclass(bearer_type, HTTPBearer),
+                "HTTPBearer403 必須繼承 HTTPBearer",
+            ))
+            results.append(check(
+                "Compatibility exception",
+                lambda: bearer_type is not None and bearer_type().make_not_authenticated_error().status_code == 403,
+                "make_not_authenticated_error 必須回傳 HTTP 403 exception",
             ))
         return results
     if lesson_id == "python-type-hints":
