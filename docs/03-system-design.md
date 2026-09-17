@@ -50,7 +50,7 @@ GitHub Pages 只提供靜態 React 檔案，無法執行 FastAPI。部署 workfl
 ## CI and task boundaries
 
 - 每個 `Txxx` 對應一個 Issue、`task/Txxx-description` branch、PR 與獨立 CI run。
-- CI 的 `web`、`api`、`runner-image` 是三個穩定 required-check 名稱。
+- CI 的 `web`、`api`、`runner-image`、`browser-runner` 是四個穩定 required-check 名稱；`browser-runner` 以 Node 24 + JSPI 在 Pyodide 中跑完全部參考解答，確保瀏覽器 runner 與 container runner 的 hidden checks 結果一致。
 - 同一 branch 的新 commit 會取消舊的 CI run；不同 task branch 使用不同 concurrency group，不會互相取消。
 - GitHub Pages deployment 只從 `main` 或人工 dispatch 執行，不作為 PR CI 的替代品。
 - Task branch 併入 `main` 前，三個 CI jobs 必須通過；實際建立 branch、push、PR 與 required checks 等 repository 操作留到 GitHub 專案建立後逐 task 進行。

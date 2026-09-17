@@ -23,6 +23,7 @@ EXCLUDED_PARTS = {
     "__pycache__",
     "artifacts",
     "dist",
+    "generated",
     "graphify-out",
     "node_modules",
     "release",
