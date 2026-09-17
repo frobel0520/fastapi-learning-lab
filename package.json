@@ -6,7 +6,9 @@
   "workspaces": ["apps/web"],
   "scripts": {
     "dev:web": "pnpm --filter @fastapi-lab/web dev",
+    "dev:web:static": "pnpm export:static && pnpm --filter @fastapi-lab/web dev:static",
     "build:web": "pnpm --filter @fastapi-lab/web build",
+    "build:web:static": "pnpm export:static && pnpm --filter @fastapi-lab/web build:static",
     "build:runner": "podman build --tag localhost/fastapi-learning-lab-runner:dev apps/runner",
     "build:runner:local-ca": "podman build --build-arg PYTHON_BASE_IMAGE=localhost/python-ca:3.12.13-slim-trixie --tag localhost/fastapi-learning-lab-runner:dev apps/runner",
     "test:web": "pnpm --filter @fastapi-lab/web test",

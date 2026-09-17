@@ -9,7 +9,7 @@ export type LessonWorkspace = {
 export type WorkspaceStore = Record<string, LessonWorkspace>;
 
 export const WORKSPACE_STORAGE_KEY = "fastapi-learning-lab:workspaces:v1";
-export const IDLE_OUTPUT = "等待執行。程式碼會送入無網路的暫時性 Podman container。";
+export const IDLE_OUTPUT = "等待執行。按「執行測試」會在隔離環境中跑 hidden checks。";
 const MAX_PERSISTED_OUTPUT = 12_000;
 
 export function defaultWorkspace(starter: string): LessonWorkspace {

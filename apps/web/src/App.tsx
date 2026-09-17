@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { executeCode, fetchCourse } from "./api";
+import { executeCode, fetchCourse, siteMode } from "./api";
 import { createSolutionEditorState, solutionWithOutput, splitEditorSubmission } from "./editor-state";
+import { onRunnerProgress } from "./runner/progress";
+import { SITE_COPY } from "./site-mode";
 import type { Course, Lesson } from "./types";
 import { IDLE_OUTPUT, loadWorkspaceStore, saveWorkspaceStore, workspaceFor } from "./workspace-state";
 import type { LessonWorkspace, WorkspaceStore } from "./workspace-state";
@@ -9,6 +11,7 @@ type LayoutMode = "workbench" | "focus" | "review";
 type LessonTab = "concept" | "code" | "practice";
 const LESSON_TABS: LessonTab[] = ["concept", "code", "practice"];
 const LESSON_TAB_LABELS: Record<LessonTab, string> = { concept: "概念解析", code: "程式碼導讀", practice: "Coding 練習" };
+const COPY = SITE_COPY[siteMode];
 
 function CloudMark() {
   return <span className="cloud-mark" aria-hidden="true"><i /><i /><i /><i /></span>;
@@ -101,7 +104,8 @@ export default function App() {
 
   async function runPreview() {
     if (!lesson) return;
-    updateWorkspace({ runState: "running", output: "正在建立隔離環境並執行 hidden checks…" });
+    updateWorkspace({ runState: "running", output: COPY.running });
+    const stopProgress = onRunnerProgress((message) => updateWorkspace({ runState: "running", output: message }));
     try {
       const submission = splitEditorSubmission(workspace.code, lesson.execution.invocation);
       const result = await executeCode(lesson.id, submission.code, submission.observationCode);
@@ -109,7 +113,9 @@ export default function App() {
       const details = [checks, result.stdout, result.stderr].filter(Boolean).join("\n");
       updateWorkspace({ runState: result.status === "passed" ? "done" : "error", output: `${details || result.status}\n${result.runner} · ${result.duration_ms}ms` });
     } catch {
-      updateWorkspace({ runState: "error", output: "無法連線課程 API。請確認 FastAPI 後端位於 8010，或設定 VITE_API_BASE_URL。" });
+      updateWorkspace({ runState: "error", output: COPY.runFailed });
+    } finally {
+      stopProgress();
     }
   }
 
@@ -133,7 +139,7 @@ export default function App() {
   }
 
   if (contentState === "loading") return <main className="content-state" aria-live="polite"><CloudMark /><strong>正在載入課程引擎…</strong><span>讀取模組、範例與練習契約</span></main>;
-  if (contentState === "error" || !course || !lesson) return <main className="content-state is-error" role="alert"><strong>課程 API 尚未連線</strong><span>請在 8010 啟動 FastAPI 後端，再重新整理頁面。</span><button type="button" onClick={() => window.location.reload()}>重新載入</button></main>;
+  if (contentState === "error" || !course || !lesson) return <main className="content-state is-error" role="alert"><strong>{COPY.contentErrorTitle}</strong><span>{COPY.contentErrorDetail}</span><button type="button" onClick={() => window.location.reload()}>重新載入</button></main>;
 
   return (
     <div className={`app-shell layout-${layout} ${compact ? "is-compact" : ""} ${dark ? "is-dark" : ""}`}>
@@ -170,7 +176,7 @@ export default function App() {
       </main>
 
       <aside className="lab-panel" aria-label="程式碼實驗室">
-        <div className="lab-header"><div><button className="lab-back-button" type="button" onClick={() => setLayout("workbench")}>返回教材</button><span className="status-dot" /><strong>{lesson.code.filename}</strong></div><span>Python 3.12</span></div>
+        <div className="lab-header"><div><button className="lab-back-button" type="button" onClick={() => setLayout("workbench")}>返回教材</button><span className="status-dot" /><strong>{lesson.code.filename}</strong></div><span>{COPY.runtimeLabel}</span></div>
         <div className="editor-wrap"><div className="line-numbers" ref={lineNumbersRef} aria-hidden="true">{workspace.code.split("\n").map((_, index) => <span key={index}>{index + 1}</span>)}</div><textarea aria-describedby="lesson-checks" aria-label="FastAPI 程式碼" value={workspace.code} onChange={(event) => updateWorkspace({ code: event.target.value })} onScroll={(event) => { if (lineNumbersRef.current) lineNumbersRef.current.scrollTop = event.currentTarget.scrollTop; }} spellCheck={false} /></div>
         <div className="lab-toolbar">
           <button className="secondary-button" disabled={workspace.runState === "running"} type="button" onClick={() => updateWorkspace({ code: lesson.code.starter, output: IDLE_OUTPUT, runState: "idle" })}>重設</button>
