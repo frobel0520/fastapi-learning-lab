@@ -119,3 +119,5 @@ uv run pywrangler dev
 Cloudflare 同源部署可以不設定 `VITE_API_BASE_URL`；正式版會使用目前網頁 origin。
 
 GitHub Pages 只會在 `main` 的 CI 全數成功後自動部署（`pnpm build:web:static`）；手動 dispatch 也會先重跑前端 tests 與 typecheck。
+
+GitHub Pages 版會在 `<head>` 載入 [Harbor](https://harbor-1wk.pages.dev) 的維護腳本（slug `fastapi-learning-lab`，見 `apps/web/src/harbor-embed.ts`），可從 Harbor 開關維護畫面與公告列。腳本 fail-open：讀不到 Harbor 設定時最多 800ms 後照常顯示。本機與 API 模式的 build 不會載入。
