@@ -58,6 +58,8 @@ p, li { text-wrap: pretty; }
 .text-button, .avatar-button { border: 0; background: transparent; cursor: pointer; }
 .text-button { color: var(--blue-strong); font-weight: 600; padding: 10px; border-radius: 6px; text-decoration: none; font-size: 13px; }
 .text-button:hover { background: var(--blue-soft); }
+.atlas-link { color: var(--blue-strong); font-size: 12px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.atlas-link:hover { text-decoration: underline; text-underline-offset: 3px; }
 .avatar-button { width: 34px; height: 34px; border-radius: 50%; color: #fff; background: var(--blue-strong); font-size: 12px; font-weight: 700; }
 
 .course-nav { grid-area: nav; overflow: auto; border-right: 1px solid var(--outline); background: var(--surface); padding: 20px 12px 32px; }
@@ -191,6 +193,8 @@ p, li { text-wrap: pretty; }
 }
 
 @media (max-width: 760px) {
+  .atlas-link { font-size: 0; }
+  .atlas-link::after { content: "Atlas ↗"; font-size: 12px; }
   .app-shell { display: block; padding-top: 58px; }
   .topbar { position: fixed; inset: 0 0 auto; height: 58px; display: flex; justify-content: space-between; padding: 0 14px; }.header-context, .text-button { display: none; }
   .course-nav { display: none; }.lesson-main { min-height: calc(100vh - 58px); margin-right: 0; padding: 18px 18px 96px; }.lesson-heading { display: block; margin: 26px 0 20px; }.lesson-heading h1 { font-size: 32px; }.lesson-status { display: inline-block; margin-top: 14px; }
