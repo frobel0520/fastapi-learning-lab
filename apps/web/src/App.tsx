@@ -147,7 +147,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand-lockup"><CloudMark /><strong>FastAPI Learning Lab</strong><span className="stage-tag">v1</span></div>
         <div className="header-context"><span className="course-label">學習路徑</span><strong>{course.title}</strong></div>
-        <div className="header-actions"><a className="text-button" href={course.source_url} target="_blank" rel="noreferrer">官方文件</a><button className="avatar-button" type="button" aria-label="本機學習者">MW</button></div>
+        <div className="header-actions"><a className="atlas-link" href="https://frobel0520.github.io/learning-atlas/" aria-label="返回 Learning Atlas 學習總入口">學習總覽 ↗</a><a className="text-button" href={course.source_url} target="_blank" rel="noreferrer">官方文件</a><button className="avatar-button" type="button" aria-label="本機學習者">MW</button></div>
       </header>
 
       <aside className="course-nav" aria-label="課程導覽">
