@@ -4,6 +4,8 @@
 
 線上展示：https://frobel0520.github.io/fastapi-learning-lab/ （GitHub Pages 靜態站，Coding 練習直接在瀏覽器內以 Pyodide 執行；需要支援 WebAssembly JSPI 的瀏覽器，已在 Chrome 驗證）
 
+本站是 [Learning Atlas](https://frobel0520.github.io/learning-atlas/)「程式語言」路線的一站，介面導覽有返回 Learning Atlas 的連結（2026-09-25 起）。
+
 ## 目前範圍
 
 - GCP Console 風格的響應式三欄學習介面
