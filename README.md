@@ -1,12 +1,14 @@
 # FastAPI Learning Lab
 
-以繁體中文學習 FastAPI 的互動式工作台。前端使用 React，後端使用 FastAPI；課程內容會依 FastAPI 官方 Learn 導覽建立版本化 coverage manifest。
+> 以繁體中文學習 FastAPI 的互動式工作台。前端使用 React，後端使用 FastAPI；課程內容會依 FastAPI 官方 Learn 導覽建立版本化 coverage manifest。
+
+## 概覽
 
 線上展示：https://frobel0520.github.io/fastapi-learning-lab/ （GitHub Pages 靜態站，Coding 練習直接在瀏覽器內以 Pyodide 執行；需要支援 WebAssembly JSPI 的瀏覽器，已在 Chrome 驗證）
 
 本站是 [Learning Atlas](https://frobel0520.github.io/learning-atlas/)「程式語言」路線的一站，介面導覽有返回 Learning Atlas 的連結（2026-09-25 起）。
 
-## 目前範圍
+## 主要功能／內容
 
 - GCP Console 風格的響應式三欄學習介面
 - 14 模組、111 堂完整互動課程與 105 筆 ready FastAPI Learn coverage entries
@@ -21,6 +23,16 @@
 - Cloudflare Static Assets + Python Worker 部署入口（隔離執行需要 Workers Paid，暫未部署）
 
 兩種執行模式共用同一份 `apps/runner/harness.py`：本機開發使用 FastAPI API + Podman container；公開展示使用 GitHub Pages + 瀏覽器內 Pyodide，不需要任何雲端帳號或費用。
+
+## 現況與已知限制
+
+既有 README 記錄 GitHub Pages 靜態展示與 Chrome 的 Pyodide 驗證；本次未重新驗證各瀏覽器或後端隔離執行。
+
+## 授權與來源
+
+Repository 根目錄未見授權檔；此 README 不另行宣告使用或再散布權利。
+
+---
 
 ## 本機啟動
 
