@@ -60,7 +60,6 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<LessonTab>("concept");
   const [layout, setLayout] = useState<LayoutMode>("workbench");
   const [compact, setCompact] = useState(false);
-  const [dark, setDark] = useState(false);
   const [showTweaks, setShowTweaks] = useState(false);
   const [contentState, setContentState] = useState<"loading" | "ready" | "error">("loading");
   const [workspaces, setWorkspaces] = useState<WorkspaceStore>(() => loadWorkspaceStore());
@@ -142,7 +141,7 @@ export default function App() {
   if (contentState === "error" || !course || !lesson) return <main className="content-state is-error" role="alert"><strong>{COPY.contentErrorTitle}</strong><span>{COPY.contentErrorDetail}</span><button type="button" onClick={() => window.location.reload()}>重新載入</button></main>;
 
   return (
-    <div className={`app-shell layout-${layout} ${compact ? "is-compact" : ""} ${dark ? "is-dark" : ""}`}>
+    <div className={`app-shell layout-${layout} ${compact ? "is-compact" : ""}`}>
       <a className="skip-link" href="#lesson-content">跳到課程內容</a>
       <header className="topbar">
         <div className="brand-lockup"><CloudMark /><strong>FastAPI Learning Lab</strong><span className="stage-tag">v1</span></div>
@@ -151,6 +150,7 @@ export default function App() {
       </header>
 
       <aside className="course-nav" aria-label="課程導覽">
+        <div className="brand"><span className="brand-mark" aria-hidden="true">FA</span><span className="brand-text"><b>FastAPI Learning Lab</b><small>INTERACTIVE FASTAPI</small></span></div>
         <div className="nav-summary"><span className="overline">AVAILABLE NOW</span><div className="progress-copy"><strong>{readyCount}/{mappedCount}</strong><span>堂可學習課程</span></div><div className="progress-track"><span style={{ width: `${mappedCount ? (readyCount / mappedCount) * 100 : 0}%` }} /></div></div>
         <nav className="module-list">
           {course.modules.map((courseModule) => <section className="module" key={courseModule.id}>
@@ -188,7 +188,7 @@ export default function App() {
       </aside>
 
       <button className="tweaks-trigger" type="button" onClick={() => setShowTweaks((value) => !value)} aria-expanded={showTweaks}>顯示設定</button>
-      {showTweaks && <div className="tweaks-panel"><div className="tweaks-heading"><strong>Tweaks</strong><button type="button" onClick={() => setShowTweaks(false)}>關閉</button></div><label>版面<select value={layout} onChange={(event) => setLayout(event.target.value as LayoutMode)}><option value="workbench">Workbench</option><option value="focus">Focus</option><option value="review">Review</option></select></label><label className="switch-row"><span>緊湊密度</span><input type="checkbox" checked={compact} onChange={(event) => setCompact(event.target.checked)} /></label><label className="switch-row"><span>深色模式</span><input type="checkbox" checked={dark} onChange={(event) => setDark(event.target.checked)} /></label></div>}
+      {showTweaks && <div className="tweaks-panel"><div className="tweaks-heading"><strong>Tweaks</strong><button type="button" onClick={() => setShowTweaks(false)}>關閉</button></div><label>版面<select value={layout} onChange={(event) => setLayout(event.target.value as LayoutMode)}><option value="workbench">Workbench</option><option value="focus">Focus</option><option value="review">Review</option></select></label><label className="switch-row"><span>緊湊密度</span><input type="checkbox" checked={compact} onChange={(event) => setCompact(event.target.checked)} /></label></div>}
     </div>
   );
 }
