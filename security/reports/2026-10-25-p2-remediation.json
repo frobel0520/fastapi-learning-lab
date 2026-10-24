@@ -1,0 +1,57 @@
+{
+  "taskId": "SEC-P2-20261025",
+  "date": "2026-10-25",
+  "name": "fastapi-learning-lab",
+  "baseCommit": "3bed40a02f1fa9147f9f0f39facc18e355e254e2",
+  "baseBranch": "main",
+  "branch": "feature/sec-p2-20261025",
+  "state": "隔離修補已備妥，待整合",
+  "change": "pnpm lock 的 Vite 8.3.0 更新8.3.5；pytest 更新9.0.3修正UNIX暫存目錄公告，保留FastAPI 0.141.1；48個Python解析版本加約束。",
+  "checks": [
+    "前端24 tests／type build",
+    "Python非container 11 tests；117個container測試未執行",
+    "pnpm audit及Python精確依賴公告均0"
+  ],
+  "counts": {
+    "info": 0,
+    "low": 0,
+    "moderate": 0,
+    "high": 0,
+    "critical": 0,
+    "total": 0
+  },
+  "python": {
+    "resolvedPackages": 48,
+    "uniqueFindings": []
+  },
+  "securityGate": "passed_within_checked_scope",
+  "performance": {
+    "beforeGzipBytes": 81529,
+    "afterGzipBytes": 81653,
+    "growth": 0.0015209312023942401,
+    "thresholdGrowth": 0.05,
+    "performance": "pass",
+    "results": [
+      {
+        "script": "build",
+        "exitCode": 0
+      },
+      {
+        "script": "test",
+        "exitCode": 0
+      }
+    ]
+  },
+  "validation": "pnpm lock 的 Vite 8.3.0 更新8.3.5；pytest 更新9.0.3修正UNIX暫存目錄公告，保留FastAPI 0.141.1；48個Python解析版本加約束。 前端24 tests／type build；Python非container 11 tests；117個container測試未執行；pnpm audit及Python精確依賴公告均0",
+  "integrationNeeded": true,
+  "pushed": false,
+  "deployed": false,
+  "merged": false,
+  "noreplyIdentityVerified": true,
+  "actionPins": 18,
+  "monthlyCost": "Local checks only. No paid APIs, cloud data writes, new recurring services, remote CI, merge or deployment.",
+  "limitations": [
+    "原始工作目錄、未提交修改與分支全部保留；本報告僅適用此隔離分支。",
+    "完整history／秘密輪替／正式服務與二進位鑑識不在此輪驗收，未評項目not_scored。"
+  ]
+}
