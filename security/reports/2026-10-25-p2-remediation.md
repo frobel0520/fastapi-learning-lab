@@ -4,18 +4,18 @@
 
 狀態：隔離修補已備妥，待整合。未推送／合併／部署；原始工作目錄保留。
 
-pnpm lock 的 Vite 8.3.0 更新8.3.5；pytest 更新9.0.3修正UNIX暫存目錄公告，保留FastAPI 0.141.1；48個Python解析版本加約束。
+Vite8.3.5、API pytest9.0.3，API48個解析版本加約束。另修共享容器／Pyodide runner的multipart0.0.32、PyJWT2.15.0、pytest9.0.3，移除8個直接套件公告；容器閉包43版本加約束，保留FastAPI0.141.1。
 
 - 前端24 tests／type build
-- Python非container 11 tests；117個container測試未執行
-- pnpm audit及Python精確依賴公告均0
+- API非container 11 tests；本機Pyodide全111堂參考解答及錯誤解答／跨執行狀態／輸出洪水負例通過
+- API48版本、runner43版本及pnpm公告均0；117個container測試由遠端CI另驗，不以本機WASM替代
 
 npm公告：{"info":0,"low":0,"moderate":0,"high":0,"critical":0,"total":0}。
 Python公告：0個獨立命中／48個解析版本。
 
 
 
-效能：{"beforeGzipBytes":81529,"afterGzipBytes":81653,"growth":0.0015209312023942401,"thresholdGrowth":0.05,"performance":"pass","results":[{"script":"build","exitCode":0},{"script":"test","exitCode":0}]}。
+效能：{"beforeGzipBytes":81529,"afterGzipBytes":81649,"growth":0.001471868905542813,"thresholdGrowth":0.05,"performance":"pass","results":[{"script":"build","exitCode":0},{"script":"test","exitCode":0}]}。
 
 範圍與成本：只跑本機及合成fixture，不啟用付費API或遠端CI。沒有完整正式安全或發布驗收；未評項目not_scored。
 
