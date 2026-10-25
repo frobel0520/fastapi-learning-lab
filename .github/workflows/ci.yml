@@ -59,7 +59,7 @@ jobs:
           FASTAPI_LAB_RUN_CONTAINER_TESTS: "1"
           FASTAPI_LAB_CONTAINER_ENGINE: docker
           FASTAPI_LAB_RUNNER_IMAGE: fastapi-learning-lab-runner:test
-        run: python -m pytest apps/api/tests/test_runner_integration.py -p no:cacheprovider -m integration
+        run: python -m pytest apps/api/tests/test_runner_integration.py -p no:cacheprovider -m integration -vv -o faulthandler_timeout=60
 
   browser-runner:
     runs-on: ubuntu-latest

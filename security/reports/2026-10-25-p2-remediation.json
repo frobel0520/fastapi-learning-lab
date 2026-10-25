@@ -75,5 +75,21 @@
     "resolvedPackages": 43,
     "advisories": 0,
     "scope": "Resolved CPython dependency set; Linux image and browser packages validated separately"
+  },
+  "cleanupFollowup": {
+    "date": "2026-10-25",
+    "problem": "Cancelled output-limit readers leave paused OS pipes; waiting for process exit before draining deadlocks on Linux.",
+    "fix": "After cancelling original readers and killing the producer, discard stdout/stderr in 4096-byte chunks concurrently with process.wait(); always remove the container.",
+    "linuxRegression": {
+      "before": "2 failed in 10.62s",
+      "after": "8 passed in 0.71s",
+      "cases": "Real stdout/stderr flood, three consecutive executions per runner, existing cancellation and API contracts",
+      "environment": "Python 3.12 Linux, network disabled, read-only filesystem, no Docker socket"
+    },
+    "windowsRegression": "13 non-container tests passed in 0.84s",
+    "originalWindowsContainerBaseline": "117 passed in 179.02s; Linux deadlock remains platform-specific",
+    "unchangedLimits": "64000-byte output, 6s default and existing lesson overrides, 30-minute CI job",
+    "remoteGate": "New commit pending GitHub Linux 117-case container matrix; do not reuse old cancelled CI",
+    "reference": "https://docs.python.org/3/library/asyncio-subprocess.html#asyncio.subprocess.Process.wait"
   }
 }

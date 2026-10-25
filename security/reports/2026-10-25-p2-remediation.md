@@ -23,3 +23,9 @@ Python公告：0個獨立命中／48個解析版本。
 - 完整history／秘密輪替／正式服務與二進位鑑識不在此輪驗收，未評項目not_scored。
 
 Task契約：輸入為固定基準及既有測試；交付為獨立修補分支、manifest/lockfile或來源修補與此去敏證據；無跨專案依賴。驗收是原生工具成功、已知發現逐項處置、適當真實回歸及影響範圍效能門檻；未完成項目明記，不以fixture代表正式環境。
+
+## 合併前追查：Linux 輸出洪水清理
+
+舊CI容器矩陣超過30分鐘。以無網路、唯讀、無Docker socket的Linux容器重現：stdout／stderr真實洪水各使清理超過5秒，2項回歸先失敗。修正為取消舊讀取工作、終止程序，再以4096-byte固定區塊丟棄剩餘管線輸出並同時等待結束，finally移除容器；不把無限輸出存入記憶體。
+
+Linux兩個洪水／三次連續使用槽位及既有契約合計8測試0.71秒通過；Windows非容器13測試0.84秒通過。原程式Windows實際Docker矩陣117項179.02秒通過，不能用來證明Linux修復。新版Linux遠端矩陣待驗。保留64000-byte、既有執行／課程時限與30分鐘CI門檻，只加入逐項輸出及60秒堆疊診斷。Python官方文件亦說明等待PIPE程序的死鎖風險：https://docs.python.org/3/library/asyncio-subprocess.html#asyncio.subprocess.Process.wait 。
