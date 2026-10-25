@@ -1,0 +1,95 @@
+{
+  "taskId": "SEC-P2-20261025",
+  "date": "2026-10-25",
+  "name": "fastapi-learning-lab",
+  "baseCommit": "3bed40a02f1fa9147f9f0f39facc18e355e254e2",
+  "baseBranch": "main",
+  "branch": "feature/sec-p2-20261025",
+  "state": "隔離修補已備妥，待整合",
+  "change": "Vite8.3.5、API pytest9.0.3，API48個解析版本加約束。另修共享容器／Pyodide runner的multipart0.0.32、PyJWT2.15.0、pytest9.0.3，移除8個直接套件公告；容器閉包43版本加約束，保留FastAPI0.141.1。",
+  "checks": [
+    "前端24 tests／type build",
+    "API非container 11 tests；本機Pyodide全111堂參考解答及錯誤解答／跨執行狀態／輸出洪水負例通過",
+    "API48版本、runner43版本及pnpm公告均0；117個container測試由遠端CI另驗，不以本機WASM替代"
+  ],
+  "counts": {
+    "info": 0,
+    "low": 0,
+    "moderate": 0,
+    "high": 0,
+    "critical": 0,
+    "total": 0
+  },
+  "python": {
+    "resolvedPackages": 48,
+    "uniqueFindings": []
+  },
+  "securityGate": "passed_within_checked_scope",
+  "performance": {
+    "beforeGzipBytes": 81529,
+    "afterGzipBytes": 81649,
+    "growth": 0.001471868905542813,
+    "thresholdGrowth": 0.05,
+    "performance": "pass",
+    "results": [
+      {
+        "script": "build",
+        "exitCode": 0
+      },
+      {
+        "script": "test",
+        "exitCode": 0
+      }
+    ]
+  },
+  "validation": "Vite8.3.5、API pytest9.0.3，API48個解析版本加約束。另修共享容器／Pyodide runner的multipart0.0.32、PyJWT2.15.0、pytest9.0.3，移除8個直接套件公告；容器閉包43版本加約束，保留FastAPI0.141.1。 前端24 tests／type build；API非container 11 tests；本機Pyodide全111堂參考解答及錯誤解答／跨執行狀態／輸出洪水負例通過；API48版本、runner43版本及pnpm公告均0；117個container測試由遠端CI另驗，不以本機WASM替代",
+  "integrationNeeded": true,
+  "pushed": false,
+  "deployed": false,
+  "merged": false,
+  "noreplyIdentityVerified": true,
+  "actionPins": 18,
+  "monthlyCost": "Local checks only. No paid APIs, cloud data writes, new recurring services, remote CI, merge or deployment.",
+  "limitations": [
+    "原始工作目錄、未提交修改與分支全部保留；本報告僅適用此隔離分支。",
+    "完整history／秘密輪替／正式服務與二進位鑑識不在此輪驗收，未評項目not_scored。"
+  ],
+  "runtime": {
+    "node": "v24.22.1",
+    "pyodide": "314.0.7",
+    "platform": "win32",
+    "cpu": "12th Gen Intel(R) Core(TM) i7-12700KF",
+    "bootstrapMs": 6983,
+    "cache": "not_reset; initial package downloads may be cached",
+    "referenceLessons": 111,
+    "samplesPerLesson": 1,
+    "p50MixedReferenceMs": 16,
+    "p95MixedReferenceMs": 281,
+    "maxReferenceMs": 1120,
+    "existingPerLessonTimeoutMs": 60000,
+    "withinExistingTimeout": true,
+    "regressionComparison": "not_measured",
+    "scope": "One local mixed reference workload run plus negative controls; not production latency or per-lesson statistical percentile"
+  },
+  "runnerDependencies": {
+    "resolvedPackages": 43,
+    "advisories": 0,
+    "scope": "Resolved CPython dependency set; Linux image and browser packages validated separately"
+  },
+  "cleanupFollowup": {
+    "date": "2026-10-25",
+    "problem": "Cancelled output-limit readers leave paused OS pipes; waiting for process exit before draining deadlocks on Linux.",
+    "fix": "After cancelling original readers and killing the producer, discard stdout/stderr in 4096-byte chunks concurrently with process.wait(); always remove the container.",
+    "linuxRegression": {
+      "before": "2 failed in 10.62s",
+      "after": "8 passed in 0.71s",
+      "cases": "Real stdout/stderr flood, three consecutive executions per runner, existing cancellation and API contracts",
+      "environment": "Python 3.12 Linux, network disabled, read-only filesystem, no Docker socket"
+    },
+    "windowsRegression": "13 non-container tests passed in 0.84s",
+    "originalWindowsContainerBaseline": "117 passed in 179.02s; Linux deadlock remains platform-specific",
+    "unchangedLimits": "64000-byte output, 6s default and existing lesson overrides, 30-minute CI job",
+    "remoteGate": "New commit pending GitHub Linux 117-case container matrix; do not reuse old cancelled CI",
+    "reference": "https://docs.python.org/3/library/asyncio-subprocess.html#asyncio.subprocess.Process.wait"
+  }
+}

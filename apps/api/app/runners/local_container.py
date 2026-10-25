@@ -169,13 +169,25 @@ class LocalContainerRunner:
                 process.kill()
             except ProcessLookupError:
                 pass
-        try:
-            await process.wait()
-        except ProcessLookupError:
-            pass
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
-        await self._remove_container(name)
+        try:
+            # Cancelled limit readers can leave a full, paused pipe. Even
+            # after kill(), waiting before draining can deadlock on Linux.
+            # Discard in fixed chunks instead of buffering unlimited output.
+            await asyncio.gather(
+                self._discard_output(process.stdout),
+                self._discard_output(process.stderr),
+                process.wait(),
+            )
+        finally:
+            await self._remove_container(name)
+
+    @staticmethod
+    async def _discard_output(stream: asyncio.StreamReader | None) -> None:
+        if stream is not None:
+            while await stream.read(4096):
+                pass
 
     async def _remove_container(self, name: str) -> None:
         try:
