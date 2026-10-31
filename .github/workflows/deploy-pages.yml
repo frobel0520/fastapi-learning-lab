@@ -18,7 +18,14 @@ concurrency:
 
 jobs:
   build:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    # workflow_run 的 branches 篩選只比對分支名稱；fork PR 用名為 main 的分支也會符合。
+    # 只部署本 repo main 分支 push 觸發且成功的 CI，避免外部 PR 程式碼被發布到 Pages。
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' || (
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
